@@ -1,0 +1,309 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import '../theme/app_theme.dart';
+import '../../services/location_service.dart';
+import '../../state/tracking_provider.dart';
+import '../../state/providers.dart';
+import 'home_screen.dart';
+
+class OnboardingScreen extends ConsumerStatefulWidget {
+  const OnboardingScreen({super.key});
+
+  @override
+  ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
+}
+
+class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
+  bool _isCheckingPermission = false;
+
+  Future<void> _enableLocationAccess() async {
+    setState(() {
+      _isCheckingPermission = true;
+    });
+
+    try {
+      final locationService = ref.read(locationServiceProvider);
+      final hasPermission = await locationService.checkPermission();
+
+      if (hasPermission && mounted) {
+        // Mark onboarding as seen
+        final onboardingBox = await Hive.openBox('app_preferences');
+        await onboardingBox.put('hasSeenOnboarding', true);
+        
+        // Navigate to home screen
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+      } else {
+        // Permission denied
+        if (mounted) {
+          setState(() {
+            _isCheckingPermission = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Location permission is required for tracking'),
+              backgroundColor: AppTheme.error,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isCheckingPermission = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _skipForNow() async {
+    // Mark onboarding as seen even if skipped
+    final onboardingBox = await Hive.openBox('app_preferences');
+    await onboardingBox.put('hasSeenOnboarding', true);
+    
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              // Header with toggle
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.secondary.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: AppTheme.secondary.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.send_rounded,
+                          color: AppTheme.secondary,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'OFF',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 60),
+
+              // Globe Icon
+              Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppTheme.secondary,
+                      AppTheme.primary,
+                    ],
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.primary.withValues(alpha: 0.3),
+                      blurRadius: 30,
+                      spreadRadius: 5,
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.public_rounded,
+                  color: Colors.white,
+                  size: 60,
+                ),
+              ),
+
+              const SizedBox(height: 40),
+
+              // Title
+              const Text(
+                'Track Your World\nJourney',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  height: 1.2,
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Description
+              Text(
+                'Coordinate needs location access to automatically track which countries you visit and how long you stay.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: AppTheme.textSecondary,
+                  height: 1.5,
+                ),
+              ),
+
+              const SizedBox(height: 48),
+
+              // Features List
+              _buildFeature(
+                icon: Icons.location_on_rounded,
+                title: 'Automatic Country Detection',
+                description: 'Uses GPS to identify which country you\'re in',
+              ),
+
+              const SizedBox(height: 24),
+
+              _buildFeature(
+                icon: Icons.bolt_rounded,
+                title: 'Works Offline',
+                description: 'All data stored locally on your device',
+              ),
+
+              const SizedBox(height: 24),
+
+              _buildFeature(
+                icon: Icons.battery_charging_full_rounded,
+                title: 'Battery Friendly',
+                description: 'Optimized for minimal battery impact',
+              ),
+
+              const Spacer(),
+
+              // Enable Button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isCheckingPermission ? null : _enableLocationAccess,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.secondary,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: _isCheckingPermission
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Text(
+                          'Enable Location Access',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Skip button
+              TextButton(
+                onPressed: _skipForNow,
+                child: const Text(
+                  'Skip for now',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeature({
+    required IconData icon,
+    required String title,
+    required String description,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: AppTheme.secondary.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            icon,
+            color: AppTheme.secondary,
+            size: 24,
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                description,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
