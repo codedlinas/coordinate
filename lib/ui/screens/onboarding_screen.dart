@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -198,6 +199,43 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 title: 'Battery Friendly',
                 description: 'Optimized for minimal battery impact',
               ),
+
+              // iOS "Always Allow" info
+              // TODO: Add deep link to Settings app for iOS if permission denied
+              if (Platform.isIOS) ...[
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.warning.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppTheme.warning.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.info_outline_rounded,
+                        color: AppTheme.warning,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'For automatic background tracking, please select "Always Allow" when prompted for location access.',
+                          style: TextStyle(
+                            color: AppTheme.warning,
+                            fontSize: 13,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
 
               const Spacer(),
 

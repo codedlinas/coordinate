@@ -2,10 +2,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/models/models.dart';
 import '../data/models/trip.dart';
 import '../data/repositories/repositories.dart';
+import '../services/background_location_service.dart';
+import '../services/location_service.dart';
 
 // Repository providers
 final visitsRepositoryProvider = Provider((ref) => VisitsRepository());
 final settingsRepositoryProvider = Provider((ref) => SettingsRepository());
+
+// Background location service provider
+// TODO: When adding remote sync, ensure background updates are reconciled
+//       with server state to avoid duplicate/conflicting segments.
+final backgroundLocationServiceProvider = Provider<BackgroundLocationService>((ref) {
+  final visitsRepo = ref.watch(visitsRepositoryProvider);
+  final locationService = LocationService();
+  return BackgroundLocationService(visitsRepo, locationService);
+});
 
 // Settings state
 class SettingsNotifier extends StateNotifier<AppSettings> {

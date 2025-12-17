@@ -5,6 +5,7 @@ import '../../services/export_service.dart';
 import '../../state/providers.dart';
 import '../theme/app_theme.dart';
 import '../widgets/widgets.dart';
+import 'tracking_health_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -42,6 +43,13 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: 'Manage your alerts',
             ),
             _buildNotificationSettings(context, ref, settings),
+
+            // Background Tracking Section
+            const SectionHeader(
+              title: 'Background Tracking',
+              subtitle: 'Track country changes when app is closed',
+            ),
+            _buildBackgroundTrackingSection(context),
 
             // Data Management Section
             const SectionHeader(
@@ -333,6 +341,40 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBackgroundTrackingSection(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.cardBorder),
+      ),
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppTheme.primary.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(
+            Icons.my_location_rounded,
+            color: AppTheme.primary,
+            size: 22,
+          ),
+        ),
+        title: const Text('Tracking Health'),
+        subtitle: const Text('View status, permissions & diagnostics'),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const TrackingHealthScreen()),
+          );
+        },
       ),
     );
   }

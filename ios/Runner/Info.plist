@@ -45,5 +45,25 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	
+	<!-- Background Location Tracking -->
+	<!-- TODO: iOS may throttle background location updates; test on real devices -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>fetch</string>
+	</array>
+	
+	<!-- Location Permission Descriptions -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Coordinate needs your location to detect which country you are in and track your travel time.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Coordinate needs "Always Allow" location access to automatically detect country changes even when the app is closed. This is essential for accurate travel tracking.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Coordinate needs "Always Allow" location access to automatically detect country changes even when the app is closed. This is essential for accurate travel tracking.</string>
+	
+	<!-- Motion Usage (required by background geolocation) -->
+	<key>NSMotionUsageDescription</key>
+	<string>Coordinate uses motion detection to optimize battery usage during location tracking.</string>
 </dict>
 </plist>
