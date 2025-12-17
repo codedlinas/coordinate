@@ -65,3 +65,5 @@ class CountryVisitAdapter extends TypeAdapter<CountryVisit> {
 }
 
 
+
+

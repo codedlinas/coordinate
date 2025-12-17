@@ -103,3 +103,5 @@ class AppSettingsAdapter extends TypeAdapter<AppSettings> {
 }
 
 
+
+

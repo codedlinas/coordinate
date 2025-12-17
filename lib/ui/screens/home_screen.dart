@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:country_flags/country_flags.dart';
 import '../../data/models/models.dart';
@@ -20,12 +21,43 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _showTrackingOverlay = false;
   String _selectedPeriod = 'ALL'; // '365D' or 'ALL'
+  bool _isRefreshing = false;
+
+  Future<void> _onRefresh() async {
+    setState(() => _isRefreshing = true);
+    HapticFeedback.mediumImpact();
+    
+    ref.read(visitsProvider.notifier).refresh();
+    
+    // Small delay to show refresh indicator
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    if (mounted) {
+      setState(() => _isRefreshing = false);
+    }
+  }
+
+  String _formatCompactDuration(Duration duration) {
+    final days = duration.inDays;
+    final hours = duration.inHours % 24;
+    final mins = duration.inMinutes % 60;
+    
+    if (days > 0) {
+      return '${days}d ${hours}h';
+    } else if (hours > 0) {
+      return '${hours}h ${mins}m';
+    } else {
+      return '${mins}m';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final visits = ref.watch(visitsProvider);
     final trackingService = ref.watch(trackingServiceProvider);
     final isTracking = trackingService.isTracking;
+    final currentVisit = ref.watch(currentVisitProvider);
+    final uniqueCountries = ref.watch(uniqueCountriesProvider);
 
     // Calculate days tracked
     final firstVisit = visits.isNotEmpty
@@ -58,6 +90,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.timeline),
             onPressed: () {
+              HapticFeedback.lightImpact();
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -69,6 +102,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.more_vert),
             onPressed: () {
+              HapticFeedback.lightImpact();
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -81,125 +115,260 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       body: Stack(
         children: [
-          // Main content
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Days Tracked Card
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        AppTheme.secondary.withValues(alpha: 0.8),
-                        AppTheme.primary.withValues(alpha: 0.8),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Column(
-                    children: [
-                      const Icon(
-                        Icons.access_time,
-                        color: Colors.white,
-                        size: 32,
+          // Main content with pull-to-refresh
+          RefreshIndicator(
+            onRefresh: _onRefresh,
+            color: AppTheme.primary,
+            backgroundColor: AppTheme.surface,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Current Country Banner (when tracking)
+                  if (isTracking && currentVisit != null)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: AppTheme.success.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppTheme.success.withValues(alpha: 0.3)),
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        daysTracked.toStringAsFixed(1),
-                        style: const TextStyle(
-                          fontSize: 48,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: AppTheme.success,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          CountryFlag.fromCountryCode(
+                            currentVisit.countryCode,
+                            width: 24,
+                            height: 18,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Currently in ${currentVisit.countryName}',
+                              style: const TextStyle(
+                                color: AppTheme.success,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            _formatCompactDuration(currentVisit.duration),
+                            style: TextStyle(
+                              color: AppTheme.success.withValues(alpha: 0.8),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  // Stats Row: Days Tracked + Countries Visited
+                  Row(
+                    children: [
+                      // Days Tracked Card
+                      Expanded(
+                        flex: 3,
+                        child: Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                AppTheme.secondary.withValues(alpha: 0.8),
+                                AppTheme.primary.withValues(alpha: 0.8),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Column(
+                            children: [
+                              const Icon(
+                                Icons.access_time,
+                                color: Colors.white,
+                                size: 28,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                daysTracked.toStringAsFixed(0),
+                                style: const TextStyle(
+                                  fontSize: 40,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Days Tracked',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.white70,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Days Tracked',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.white70,
+                      
+                      const SizedBox(width: 12),
+                      
+                      // Countries Visited Card
+                      Expanded(
+                        flex: 2,
+                        child: Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: AppTheme.surface,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: AppTheme.cardBorder),
+                          ),
+                          child: Column(
+                            children: [
+                              const Icon(
+                                Icons.public,
+                                color: AppTheme.primary,
+                                size: 28,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                '${uniqueCountries.length}',
+                                style: const TextStyle(
+                                  fontSize: 40,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                uniqueCountries.length == 1 ? 'Country' : 'Countries',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: AppTheme.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ),
 
-                const SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
-                // Period Selector
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildPeriodButton('365D', _selectedPeriod == '365D'),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildPeriodButton('ALL', _selectedPeriod == 'ALL'),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 32),
-
-                // Last 24 Hours Section
-                const Text(
-                  'Last 24 Hours',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textPrimary,
+                  // Period Selector
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildPeriodButton('365D', _selectedPeriod == '365D'),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildPeriodButton('ALL', _selectedPeriod == 'ALL'),
+                      ),
+                    ],
                   ),
-                ),
 
-                const SizedBox(height: 16),
+                  const SizedBox(height: 32),
 
-                // Countries List
-                if (countriesLast24h.isEmpty)
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Text(
-                        'No visits in the last 24 hours',
+                  // Last 24 Hours Section
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Last 24 Hours',
                         style: TextStyle(
-                          color: AppTheme.textSecondary,
-                          fontSize: 16,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textPrimary,
                         ),
                       ),
-                    ),
-                  )
-                else
-                  ...countriesLast24h.entries.map<Widget>((entry) {
-                    final countryCode = entry.key;
-                    final countryVisits = entry.value;
-                    final totalDuration = countryVisits.fold<Duration>(
-                      Duration.zero,
-                      (sum, visit) => sum + visit.duration,
-                    );
-                    final days = totalDuration.inDays;
-                    final hours = totalDuration.inHours % 24;
-                    final minutes = totalDuration.inMinutes % 60;
-                    final seconds = totalDuration.inSeconds % 60;
+                      if (_isRefreshing)
+                        const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppTheme.primary,
+                          ),
+                        ),
+                    ],
+                  ),
 
-                    return _buildCountryCard(
-                      context,
-                      countryCode: countryCode,
-                      countryName: countryVisits.first.countryName,
-                      days: days,
-                      hours: hours,
-                      minutes: minutes,
-                      seconds: seconds,
-                      index: countriesLast24h.keys.toList().indexOf(countryCode) + 1,
-                    );
-                  }),
+                  const SizedBox(height: 16),
 
-                const SizedBox(height: 100),
-              ],
+                  // Countries List
+                  if (countriesLast24h.isEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(40),
+                      decoration: BoxDecoration(
+                        color: AppTheme.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppTheme.cardBorder),
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.flight_takeoff_rounded,
+                            size: 48,
+                            color: AppTheme.textMuted.withValues(alpha: 0.5),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No visits in the last 24 hours',
+                            style: TextStyle(
+                              color: AppTheme.textSecondary,
+                              fontSize: 15,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Start tracking to record your travels',
+                            style: TextStyle(
+                              color: AppTheme.textMuted,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    ...countriesLast24h.entries.map<Widget>((entry) {
+                      final countryCode = entry.key;
+                      final countryVisits = entry.value;
+                      final totalDuration = countryVisits.fold<Duration>(
+                        Duration.zero,
+                        (sum, visit) => sum + visit.duration,
+                      );
+                      final isOngoing = countryVisits.any((v) => v.isOngoing);
+
+                      return _buildCountryCard(
+                        context,
+                        countryCode: countryCode,
+                        countryName: countryVisits.first.countryName,
+                        duration: totalDuration,
+                        index: countriesLast24h.keys.toList().indexOf(countryCode) + 1,
+                        isOngoing: isOngoing,
+                      );
+                    }),
+
+                  const SizedBox(height: 100),
+                ],
+              ),
             ),
           ),
 
@@ -217,11 +386,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             right: 24,
             child: FloatingActionButton(
               onPressed: () {
+                HapticFeedback.mediumImpact();
                 setState(() {
                   _showTrackingOverlay = !_showTrackingOverlay;
                 });
               },
-              backgroundColor: AppTheme.primary,
+              backgroundColor: isTracking ? AppTheme.success : AppTheme.primary,
               child: Icon(
                 isTracking ? Icons.location_on : Icons.location_off,
                 color: Colors.white,
@@ -236,6 +406,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget _buildPeriodButton(String label, bool isSelected) {
     return GestureDetector(
       onTap: () {
+        HapticFeedback.selectionClick();
         setState(() {
           _selectedPeriod = label;
         });
@@ -267,26 +438,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     BuildContext context, {
     required String countryCode,
     required String countryName,
-    required int days,
-    required int hours,
-    required int minutes,
-    required int seconds,
+    required Duration duration,
     required int index,
+    required bool isOngoing,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: isOngoing 
+            ? AppTheme.primary.withValues(alpha: 0.08)
+            : AppTheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.cardBorder),
+        border: Border.all(
+          color: isOngoing ? AppTheme.primary.withValues(alpha: 0.3) : AppTheme.cardBorder,
+        ),
       ),
       child: Row(
         children: [
           // Index Circle
           Container(
-            width: 40,
-            height: 40,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
               color: AppTheme.warning.withValues(alpha: 0.2),
               shape: BoxShape.circle,
@@ -294,45 +467,71 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: Center(
               child: Text(
                 '$index',
-                style: TextStyle(
+                style: const TextStyle(
                   color: AppTheme.warning,
                   fontWeight: FontWeight.bold,
-                  fontSize: 18,
+                  fontSize: 16,
                 ),
               ),
             ),
           ),
 
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
 
           // Flag
           CountryFlag.fromCountryCode(
             countryCode,
-            width: 40,
-            height: 30,
+            width: 36,
+            height: 26,
           ),
 
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
 
           // Country Name
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  countryName,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
-                  ),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        countryName,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (isOngoing) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primary,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'NOW',
+                          style: TextStyle(
+                            color: AppTheme.background,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 4),
                 // Duration indicator bar
                 Container(
                   height: 4,
                   decoration: BoxDecoration(
-                    color: AppTheme.warning,
+                    color: isOngoing ? AppTheme.primary : AppTheme.warning,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -340,35 +539,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
 
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
 
-          // Duration Text
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              if (days > 0)
-                Text(
-                  '$days days',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppTheme.textSecondary,
-                  ),
-                ),
-              Text(
-                '(${days > 0 ? "$days.$hours" : hours}d)',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppTheme.textMuted,
-                ),
-              ),
-              Text(
-                '${seconds}s',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppTheme.textMuted,
-                ),
-              ),
-            ],
+          // Compact Duration
+          Text(
+            _formatCompactDuration(duration),
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: isOngoing ? AppTheme.primary : AppTheme.textPrimary,
+            ),
           ),
         ],
       ),
@@ -384,9 +564,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Material(
       color: Colors.transparent,
-        child: Container(
-          width: 280,
-          padding: const EdgeInsets.all(20),
+      child: Container(
+        width: 280,
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: AppTheme.surface.withValues(alpha: 0.95),
           borderRadius: BorderRadius.circular(20),
@@ -403,50 +583,51 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-              // Header with close button
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          color: isTracking ? AppTheme.success : AppTheme.error,
-                          shape: BoxShape.circle,
-                        ),
+            // Header with close button
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: isTracking ? AppTheme.success : AppTheme.error,
+                        shape: BoxShape.circle,
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Tracking ${isTracking ? "ON" : "OFF"}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Tracking ${isTracking ? "ON" : "OFF"}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 20, color: Colors.white),
-                    onPressed: () {
-                      setState(() {
-                        _showTrackingOverlay = false;
-                      });
-                    },
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ],
-              ),
+                    ),
+                  ],
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 20, color: Colors.white),
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    setState(() {
+                      _showTrackingOverlay = false;
+                    });
+                  },
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
 
-              const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-              // Current Location - show if we have an ongoing visit
-              _TrackingCountryDisplay(
-                trackingService: trackingService,
-              ),
+            // Current Location - show if we have an ongoing visit
+            _TrackingCountryDisplay(
+              trackingService: trackingService,
+            ),
 
             // Start Button (when not tracking)
             if (!isTracking)
@@ -454,18 +635,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () async {
+                    HapticFeedback.mediumImpact();
                     try {
                       await trackingService.startTracking();
                       if (mounted) {
-                        setState(() {}); // Update UI to show tracking is ON
-                        // Wait for location check to complete
+                        setState(() {});
                         await Future.delayed(const Duration(milliseconds: 3000));
-                        // Force refresh to get the new visit
                         if (mounted) {
                           ref.read(visitsProvider.notifier).refresh();
-                          setState(() {}); // Trigger rebuild to show country
+                          setState(() {});
                         }
-                        // Continue refreshing periodically
                         for (int i = 0; i < 5; i++) {
                           await Future.delayed(const Duration(milliseconds: 500));
                           if (mounted && trackingService.isTracking) {
@@ -511,6 +690,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () async {
+                    HapticFeedback.mediumImpact();
                     await trackingService.stopTracking();
                     if (mounted) {
                       ref.read(visitsProvider.notifier).refresh();
@@ -539,6 +719,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: IconButton(
                   icon: const Icon(Icons.pause, color: Colors.orange, size: 24),
                   onPressed: () {
+                    HapticFeedback.lightImpact();
                     // Pause functionality - can be implemented later
                   },
                   style: IconButton.styleFrom(
@@ -573,9 +754,7 @@ class _TrackingCountryDisplayState extends ConsumerState<_TrackingCountryDisplay
   @override
   void initState() {
     super.initState();
-    // Listen to tracking service changes
     widget.trackingService.addListener(_onTrackingChanged);
-    // Set up periodic refresh while tracking
     _startRefreshTimer();
   }
 
@@ -588,7 +767,6 @@ class _TrackingCountryDisplayState extends ConsumerState<_TrackingCountryDisplay
 
   void _onTrackingChanged() {
     if (mounted && widget.trackingService.isTracking) {
-      // Refresh visits provider when tracking service notifies
       ref.read(visitsProvider.notifier).refresh();
       setState(() {});
     }
@@ -608,13 +786,10 @@ class _TrackingCountryDisplayState extends ConsumerState<_TrackingCountryDisplay
 
   @override
   Widget build(BuildContext context) {
-    // Get visit from service directly (most up-to-date)
     final serviceVisit = widget.trackingService.currentVisit;
-    // Also watch provider as fallback
     final providerVisit = ref.watch(currentVisitProvider);
     final currentVisit = serviceVisit ?? providerVisit;
 
-    // Restart timer if tracking state changed
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.trackingService.isTracking) {
         _startRefreshTimer();
@@ -627,20 +802,21 @@ class _TrackingCountryDisplayState extends ConsumerState<_TrackingCountryDisplay
       return Padding(
         padding: const EdgeInsets.only(bottom: 16),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.public,
-              color: Colors.white,
-              size: 20,
+            CountryFlag.fromCountryCode(
+              currentVisit.countryCode,
+              width: 28,
+              height: 20,
             ),
-            const SizedBox(width: 8),
-            Text(
-              currentVisit.countryName,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                currentVisit.countryName,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
               ),
             ),
           ],
