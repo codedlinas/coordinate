@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/models/models.dart';
+import '../data/models/trip.dart';
 import '../data/repositories/repositories.dart';
 
 // Repository providers
@@ -102,6 +103,19 @@ class VisitsNotifier extends StateNotifier<List<CountryVisit>> {
 final visitsProvider =
     StateNotifierProvider<VisitsNotifier, List<CountryVisit>>((ref) {
   return VisitsNotifier(ref.watch(visitsRepositoryProvider));
+});
+
+// Trips provider - derived from visits
+final tripsProvider = Provider<List<Trip>>((ref) {
+  final visits = ref.watch(visitsProvider);
+
+  // TODO: When background tracking adds finer-grained segments or
+  //       remote sync introduces partial segments, consider merging
+  //       consecutive segments in the same country into a single Trip.
+  final trips = visits.map(Trip.fromVisit).toList()
+    ..sort((a, b) => b.arrivalDateUtc.compareTo(a.arrivalDateUtc));
+
+  return trips;
 });
 
 // Current visit provider

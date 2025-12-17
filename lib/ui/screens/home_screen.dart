@@ -8,6 +8,7 @@ import '../../state/tracking_provider.dart';
 import '../../services/tracking_service.dart';
 import '../theme/app_theme.dart';
 import 'settings_screen.dart';
+import 'timeline_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -54,6 +55,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         backgroundColor: AppTheme.background,
         elevation: 0,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.timeline),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const TimelineScreen(),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.more_vert),
             onPressed: () {
