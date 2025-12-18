@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -76,7 +76,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             children: [
@@ -117,12 +117,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 ],
               ),
 
-              const SizedBox(height: 60),
+              const SizedBox(height: 40),
 
               // Globe Icon
               Container(
-                width: 120,
-                height: 120,
+                width: 100,
+                height: 100,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
@@ -144,38 +144,38 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 child: const Icon(
                   Icons.public_rounded,
                   color: Colors.white,
-                  size: 60,
+                  size: 50,
                 ),
               ),
 
-              const SizedBox(height: 40),
+              const SizedBox(height: 24),
 
               // Title
               const Text(
                 'Track Your World\nJourney',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 32,
+                  fontSize: 26,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                   height: 1.2,
                 ),
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
 
               // Description
               Text(
                 'Coordinate needs location access to automatically track which countries you visit and how long you stay.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 14,
                   color: AppTheme.textSecondary,
                   height: 1.5,
                 ),
               ),
 
-              const SizedBox(height: 48),
+              const SizedBox(height: 32),
 
               // Features List
               _buildFeature(
@@ -184,7 +184,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 description: 'Uses GPS to identify which country you\'re in',
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
 
               _buildFeature(
                 icon: Icons.bolt_rounded,
@@ -192,7 +192,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 description: 'All data stored locally on your device',
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
 
               _buildFeature(
                 icon: Icons.battery_charging_full_rounded,
@@ -200,33 +200,83 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 description: 'Optimized for minimal battery impact',
               ),
 
-              // iOS "Always Allow" info
-              // TODO: Add deep link to Settings app for iOS if permission denied
-              if (Platform.isIOS) ...[
+              // iOS tracking info - foreground only
+              if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) ...[
                 const SizedBox(height: 24),
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: AppTheme.warning.withValues(alpha: 0.1),
+                    color: Colors.blue.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: AppTheme.warning.withValues(alpha: 0.3),
+                      color: Colors.blue.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.phone_iphone,
+                            color: Colors.blue,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'iOS Tracking',
+                            style: TextStyle(
+                              color: Colors.blue,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'On iOS, location is checked when you open the app. '
+                        'For best results, open Coordinate when crossing borders '
+                        'or use manual edits to adjust trip times.',
+                        style: TextStyle(
+                          color: AppTheme.textSecondary,
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              
+              // Android tracking info
+              if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) ...[
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.success.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppTheme.success.withValues(alpha: 0.3),
                     ),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Icon(
-                        Icons.info_outline_rounded,
-                        color: AppTheme.warning,
+                        Icons.android,
+                        color: AppTheme.success,
                         size: 20,
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'For automatic background tracking, please select "Always Allow" when prompted for location access.',
+                          'Background tracking checks your location every ~15 minutes. '
+                          'For best reliability, select "Allow all the time" and disable '
+                          'battery optimization for Coordinate.',
                           style: TextStyle(
-                            color: AppTheme.warning,
+                            color: AppTheme.textSecondary,
                             fontSize: 13,
                             height: 1.4,
                           ),
@@ -237,7 +287,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 ),
               ],
 
-              const Spacer(),
+              const SizedBox(height: 32),
 
               // Enable Button
               SizedBox(
@@ -246,16 +296,16 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   onPressed: _isCheckingPermission ? null : _enableLocationAccess,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.secondary,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     elevation: 0,
                   ),
                   child: _isCheckingPermission
                       ? const SizedBox(
-                          height: 20,
-                          width: 20,
+                          height: 18,
+                          width: 18,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             valueColor:
@@ -265,7 +315,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       : const Text(
                           'Enable Location Access',
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize: 15,
                             fontWeight: FontWeight.w600,
                             color: Colors.white,
                           ),
@@ -273,7 +323,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 ),
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
 
               // Skip button
               TextButton(
@@ -282,12 +332,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   'Skip for now',
                   style: TextStyle(
                     color: Colors.white70,
-                    fontSize: 14,
+                    fontSize: 13,
                   ),
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 8),
             ],
           ),
         ),

@@ -25,10 +25,11 @@ dependencies:
   
   # Background Tasks
   # WARNING: Background location has significant OS restrictions.
-  # - Android: WorkManager handles background scheduling
-  # - iOS: Background fetch with limitations
+  # - Android: WorkManager handles background scheduling + optional Foreground Service
+  # - iOS: Foreground-only tracking (background fetch is unreliable)
   workmanager: ^0.9.0
   permission_handler: ^11.3.1
+  flutter_foreground_task: ^8.0.0  # Android foreground service for high reliability mode
   
   # Notifications
   flutter_local_notifications: ^18.0.1

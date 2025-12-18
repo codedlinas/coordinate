@@ -3,6 +3,7 @@ import '../data/models/models.dart';
 import '../data/models/trip.dart';
 import '../data/repositories/repositories.dart';
 import '../services/background_location_service.dart';
+import '../services/foreground_location_service.dart';
 import '../services/location_service.dart';
 
 // Repository providers
@@ -16,6 +17,11 @@ final backgroundLocationServiceProvider = Provider<BackgroundLocationService>((r
   final visitsRepo = ref.watch(visitsRepositoryProvider);
   final locationService = LocationService();
   return BackgroundLocationService(visitsRepo, locationService);
+});
+
+// Foreground location service provider (Android high-reliability mode)
+final foregroundLocationServiceProvider = Provider<ForegroundLocationService>((ref) {
+  return ForegroundLocationService();
 });
 
 // Settings state

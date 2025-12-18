@@ -1,6 +1,10 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../services/background_location_service.dart';
+import '../../services/foreground_location_service.dart';
 import '../../state/providers.dart';
 import '../theme/app_theme.dart';
 
@@ -23,6 +27,8 @@ class _TrackingHealthScreenState extends ConsumerState<TrackingHealthScreen> {
   Map<String, dynamic>? _healthInfo;
   bool _isLoading = true;
   bool _isToggling = false;
+  bool _isTogglingForeground = false;
+  Map<String, dynamic>? _foregroundStatus;
 
   @override
   void initState() {
@@ -35,9 +41,18 @@ class _TrackingHealthScreenState extends ConsumerState<TrackingHealthScreen> {
     try {
       final bgService = ref.read(backgroundLocationServiceProvider);
       final info = await bgService.getHealthInfo();
+      
+      // Load foreground service status on Android
+      Map<String, dynamic>? fgStatus;
+      if (ForegroundLocationService.isSupported) {
+        final fgService = ref.read(foregroundLocationServiceProvider);
+        fgStatus = fgService.getStatus();
+      }
+      
       if (mounted) {
         setState(() {
           _healthInfo = info;
+          _foregroundStatus = fgStatus;
           _isLoading = false;
         });
       }
@@ -82,6 +97,37 @@ class _TrackingHealthScreenState extends ConsumerState<TrackingHealthScreen> {
     }
   }
 
+  Future<void> _toggleForegroundService() async {
+    if (_isTogglingForeground || !ForegroundLocationService.isSupported) return;
+    
+    setState(() => _isTogglingForeground = true);
+    
+    try {
+      final fgService = ref.read(foregroundLocationServiceProvider);
+      final isEnabled = _foregroundStatus?['isEnabled'] == true;
+      
+      if (isEnabled) {
+        await fgService.disable();
+      } else {
+        final success = await fgService.enable();
+        if (!success && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to enable high-reliability mode'),
+              backgroundColor: AppTheme.error,
+            ),
+          );
+        }
+      }
+      
+      await _loadHealthInfo();
+    } finally {
+      if (mounted) {
+        setState(() => _isTogglingForeground = false);
+      }
+    }
+  }
+
   Future<void> _forceLocationCheck() async {
     try {
       final bgService = ref.read(backgroundLocationServiceProvider);
@@ -122,6 +168,22 @@ class _TrackingHealthScreenState extends ConsumerState<TrackingHealthScreen> {
     final lastUpdate = _healthInfo?['lastUpdate'];
     final lastError = _healthInfo?['lastError'];
     final currentCountry = _healthInfo?['currentCountry'];
+    
+    // New diagnostic fields
+    final pendingCountry = _healthInfo?['pendingCountry'] as String?;
+    final pendingCount = _healthInfo?['pendingCount'] as int? ?? 0;
+    final pendingFirstSeen = _healthInfo?['pendingFirstSeen'] as String?;
+    final lastGeocodeTime = _healthInfo?['lastGeocodeTime'] as String?;
+    final lastLatitude = _healthInfo?['lastLatitude'] as double?;
+    final lastLongitude = _healthInfo?['lastLongitude'] as double?;
+    final lastCountrySource = _healthInfo?['lastCountrySource'] as String?;
+    final isLocked = _healthInfo?['isLocked'] as bool? ?? false;
+    final lockAcquiredAt = _healthInfo?['lockAcquiredAt'] as String?;
+    
+    // Platform info
+    final trackingMode = _healthInfo?['trackingMode'] as String? ?? 'background';
+    final isIOSForegroundOnly = trackingMode == 'foreground_only';
+    final supportsBackground = _healthInfo?['supportsBackgroundTracking'] as bool? ?? true;
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -143,9 +205,9 @@ class _TrackingHealthScreenState extends ConsumerState<TrackingHealthScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Main toggle card
+                  // Main toggle card - title varies by platform
                   _buildStatusCard(
-                    title: 'Background Tracking',
+                    title: isIOSForegroundOnly ? 'Location Tracking' : 'Background Tracking',
                     value: isEnabled ? 'ENABLED' : 'DISABLED',
                     valueColor: isEnabled ? AppTheme.success : AppTheme.textMuted,
                     icon: isEnabled ? Icons.location_on : Icons.location_off,
@@ -158,33 +220,17 @@ class _TrackingHealthScreenState extends ConsumerState<TrackingHealthScreen> {
 
                   const SizedBox(height: 16),
 
-                  // Warning banner
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppTheme.warning.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppTheme.warning.withValues(alpha: 0.3)),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(Icons.warning_amber_rounded, color: AppTheme.warning, size: 20),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'Background tracking may be limited by OS battery optimization. '
-                            'For best results, disable battery optimization for Coordinate in device settings.',
-                            style: TextStyle(
-                              color: AppTheme.warning,
-                              fontSize: 13,
-                              height: 1.4,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  // Platform-specific info banner
+                  if (isIOSForegroundOnly)
+                    _buildIOSInfoBanner()
+                  else
+                    _buildAndroidWarningBanner(),
+
+                  // High-reliability mode (Android only)
+                  if (ForegroundLocationService.isSupported && isEnabled) ...[
+                    const SizedBox(height: 16),
+                    _buildHighReliabilityModeCard(),
+                  ],
 
                   const SizedBox(height: 24),
 
@@ -212,14 +258,36 @@ class _TrackingHealthScreenState extends ConsumerState<TrackingHealthScreen> {
                     isTracking ? AppTheme.success : AppTheme.textMuted,
                   ),
                   const SizedBox(height: 8),
-                  // Motion state not available with WorkManager approach
-                  // TODO: Add motion detection via sensors if needed
+                  _buildInfoRow(
+                    'Tracking Mode',
+                    isIOSForegroundOnly ? 'Foreground Only' : 'Background',
+                    isIOSForegroundOnly ? Colors.blue : AppTheme.success,
+                  ),
+                  const SizedBox(height: 8),
                   if (currentCountry != null) ...[
                     const SizedBox(height: 8),
                     _buildInfoRow(
                       'Current Country',
                       currentCountry,
                       AppTheme.textPrimary,
+                    ),
+                  ],
+                  if (lastCountrySource != null) ...[
+                    const SizedBox(height: 8),
+                    _buildInfoRow(
+                      'Country Source',
+                      lastCountrySource == 'fresh' ? 'Fresh (new)' : 'Cached (same)',
+                      lastCountrySource == 'fresh' ? AppTheme.success : AppTheme.textSecondary,
+                    ),
+                  ],
+
+                  // Pending country change section
+                  if (pendingCountry != null) ...[
+                    const SizedBox(height: 24),
+                    _buildPendingCountrySection(
+                      pendingCountry: pendingCountry,
+                      pendingCount: pendingCount,
+                      pendingFirstSeen: pendingFirstSeen,
                     ),
                   ],
 
@@ -322,6 +390,18 @@ class _TrackingHealthScreenState extends ConsumerState<TrackingHealthScreen> {
                       ),
                     ),
                   ),
+
+                  // Developer diagnostics (only in debug mode)
+                  if (kDebugMode) ...[
+                    const SizedBox(height: 24),
+                    _buildDeveloperDiagnostics(
+                      lastGeocodeTime: lastGeocodeTime,
+                      lastLatitude: lastLatitude,
+                      lastLongitude: lastLongitude,
+                      isLocked: isLocked,
+                      lockAcquiredAt: lockAcquiredAt,
+                    ),
+                  ],
 
                   const SizedBox(height: 32),
 
@@ -472,6 +552,348 @@ class _TrackingHealthScreenState extends ConsumerState<TrackingHealthScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildHighReliabilityModeCard() {
+    final isEnabled = _foregroundStatus?['isEnabled'] == true;
+    final isRunning = _foregroundStatus?['isRunning'] == true;
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isEnabled ? AppTheme.success.withValues(alpha: 0.5) : AppTheme.cardBorder,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: isEnabled 
+                      ? AppTheme.success.withValues(alpha: 0.15)
+                      : AppTheme.textMuted.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  Icons.speed,
+                  color: isEnabled ? AppTheme.success : AppTheme.textMuted,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'High Reliability Mode',
+                      style: TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isEnabled 
+                          ? (isRunning ? 'Active' : 'Starting...')
+                          : 'Disabled',
+                      style: TextStyle(
+                        color: isEnabled ? AppTheme.success : AppTheme.textMuted,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: isEnabled,
+                onChanged: _isTogglingForeground 
+                    ? null 
+                    : (_) => _toggleForegroundService(),
+                activeColor: AppTheme.success,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Uses a foreground service for more frequent location checks (~5 min). '
+            'Shows a persistent notification. Uses more battery.',
+            style: TextStyle(
+              color: AppTheme.textMuted,
+              fontSize: 12,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIOSInfoBanner() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.phone_iphone, color: Colors.blue, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'iOS Foreground Tracking',
+                style: TextStyle(
+                  color: Colors.blue,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Location is checked when you open the app. For accurate trip tracking:',
+            style: TextStyle(
+              color: AppTheme.textSecondary,
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildIOSTip(Icons.open_in_new, 'Open the app when arriving in a new country'),
+          const SizedBox(height: 4),
+          _buildIOSTip(Icons.edit, 'Use manual edits to adjust trip times'),
+          const SizedBox(height: 4),
+          _buildIOSTip(Icons.notifications_active, 'Enable reminders for border crossings'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIOSTip(IconData icon, String text) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: AppTheme.textMuted, size: 14),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              color: AppTheme.textMuted,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAndroidWarningBanner() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.warning.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.warning.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.warning_amber_rounded, color: AppTheme.warning, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Background tracking may be limited by battery optimization. '
+              'For best results, disable battery optimization for Coordinate in device settings.',
+              style: TextStyle(
+                color: AppTheme.warning,
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPendingCountrySection({
+    required String pendingCountry,
+    required int pendingCount,
+    String? pendingFirstSeen,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'PENDING COUNTRY CHANGE',
+          style: TextStyle(
+            color: AppTheme.warning,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppTheme.warning.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppTheme.warning.withValues(alpha: 0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.pending_outlined, color: AppTheme.warning, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Waiting to confirm: $pendingCountry',
+                    style: TextStyle(
+                      color: AppTheme.warning,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Checks: $pendingCount/2 required',
+                style: TextStyle(
+                  color: AppTheme.warning.withValues(alpha: 0.8),
+                  fontSize: 13,
+                ),
+              ),
+              if (pendingFirstSeen != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'First seen: ${_formatTimeAgo(pendingFirstSeen)}',
+                  style: TextStyle(
+                    color: AppTheme.warning.withValues(alpha: 0.8),
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 8),
+              Text(
+                'Border debounce prevents false trips from GPS variance near borders.',
+                style: TextStyle(
+                  color: AppTheme.textMuted,
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDeveloperDiagnostics({
+    String? lastGeocodeTime,
+    double? lastLatitude,
+    double? lastLongitude,
+    bool isLocked = false,
+    String? lockAcquiredAt,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.bug_report, color: AppTheme.textMuted, size: 16),
+            const SizedBox(width: 6),
+            Text(
+              'DEVELOPER DIAGNOSTICS',
+              style: TextStyle(
+                color: AppTheme.textMuted,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppTheme.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppTheme.cardBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (lastGeocodeTime != null)
+                _buildDiagnosticRow('Last Geocode', _formatDateTime(lastGeocodeTime)),
+              if (lastLatitude != null && lastLongitude != null) ...[
+                const SizedBox(height: 8),
+                _buildDiagnosticRow(
+                  'Last Coordinates',
+                  '${lastLatitude.toStringAsFixed(4)}, ${lastLongitude.toStringAsFixed(4)}',
+                ),
+              ],
+              const SizedBox(height: 8),
+              _buildDiagnosticRow(
+                'Task Lock',
+                isLocked ? 'LOCKED' : 'Free',
+                valueColor: isLocked ? AppTheme.warning : AppTheme.success,
+              ),
+              if (isLocked && lockAcquiredAt != null) ...[
+                const SizedBox(height: 4),
+                _buildDiagnosticRow(
+                  'Lock Acquired',
+                  _formatTimeAgo(lockAcquiredAt),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDiagnosticRow(String label, String value, {Color? valueColor}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: AppTheme.textMuted,
+            fontSize: 12,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            color: valueColor ?? AppTheme.textSecondary,
+            fontSize: 12,
+            fontFamily: 'monospace',
+          ),
+        ),
+      ],
     );
   }
 

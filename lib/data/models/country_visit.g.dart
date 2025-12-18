@@ -26,13 +26,17 @@ class CountryVisitAdapter extends TypeAdapter<CountryVisit> {
       entryLongitude: fields[6] as double,
       city: fields[7] as String?,
       region: fields[8] as String?,
+      syncId: fields[9] as String?,
+      updatedAt: fields[10] as DateTime?,
+      deviceId: fields[11] as String?,
+      isManualEdit: fields[12] == null ? false : fields[12] as bool,
     );
   }
 
   @override
   void write(BinaryWriter writer, CountryVisit obj) {
     writer
-      ..writeByte(9)
+      ..writeByte(13)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -50,7 +54,15 @@ class CountryVisitAdapter extends TypeAdapter<CountryVisit> {
       ..writeByte(7)
       ..write(obj.city)
       ..writeByte(8)
-      ..write(obj.region);
+      ..write(obj.region)
+      ..writeByte(9)
+      ..write(obj.syncId)
+      ..writeByte(10)
+      ..write(obj.updatedAt)
+      ..writeByte(11)
+      ..write(obj.deviceId)
+      ..writeByte(12)
+      ..write(obj.isManualEdit);
   }
 
   @override
@@ -63,7 +75,4 @@ class CountryVisitAdapter extends TypeAdapter<CountryVisit> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
-
-
-
 
