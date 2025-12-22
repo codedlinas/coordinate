@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import '../core/logging/app_logger.dart';
 import '../data/models/models.dart';
 import '../data/repositories/repositories.dart';
 import 'location_service.dart';
@@ -63,29 +64,29 @@ class TrackingService extends ChangeNotifier {
       );
 
       if (locationInfo == null || locationInfo.latitude == null) {
-        debugPrint('Tracking: No location info available');
+        AppLogger.tracking('No location info available');
         return;
       }
 
-      debugPrint('Tracking: Got location - ${locationInfo.countryName} (${locationInfo.countryCode})');
+      AppLogger.tracking('Got location - ${locationInfo.countryName} (${locationInfo.countryCode})');
 
       final currentVisit = _visitsRepository.getCurrentVisit();
 
       if (currentVisit == null) {
         // No current visit - start a new one
-        debugPrint('Tracking: Starting new visit for ${locationInfo.countryName}');
+        AppLogger.tracking('Starting new visit for ${locationInfo.countryName}');
         await _startNewVisit(locationInfo);
       } else if (currentVisit.countryCode != locationInfo.countryCode) {
         // Country changed - end current and start new
-        debugPrint('Tracking: Country changed from ${currentVisit.countryName} to ${locationInfo.countryName}');
+        AppLogger.tracking('Country changed from ${currentVisit.countryName} to ${locationInfo.countryName}');
         await _endCurrentVisit();
         await _startNewVisit(locationInfo);
       } else {
-        debugPrint('Tracking: Still in ${currentVisit.countryName}');
+        AppLogger.tracking('Still in ${currentVisit.countryName}');
       }
       // Otherwise, we're still in the same country - do nothing
     } catch (e) {
-      debugPrint('Tracking error: $e');
+      AppLogger.error('Tracking', 'Error checking location', e);
     }
   }
 
@@ -106,7 +107,7 @@ class TrackingService extends ChangeNotifier {
 
     await _visitsRepository.addVisit(visit);
     _currentVisit = visit;
-    debugPrint('Tracking: Created new visit for ${visit.countryName} (ID: ${visit.id})');
+    AppLogger.tracking('Created new visit for ${visit.countryName} (ID: ${visit.id})');
     notifyListeners();
   }
 
@@ -125,4 +126,3 @@ class TrackingService extends ChangeNotifier {
     super.dispose();
   }
 }
-

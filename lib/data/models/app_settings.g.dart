@@ -102,3 +102,6 @@ class LocationAccuracyAdapter extends TypeAdapter<LocationAccuracy> {
           typeId == other.typeId;
 }
 
+
+
+

@@ -88,6 +88,7 @@ class CountryVisit extends HiveObject {
     DateTime? updatedAt,
     String? deviceId,
     bool? isManualEdit,
+    bool updateTimestamp = false, // Explicitly opt-in to timestamp update
   }) {
     return CountryVisit(
       id: id ?? this.id,
@@ -100,7 +101,7 @@ class CountryVisit extends HiveObject {
       city: city ?? this.city,
       region: region ?? this.region,
       syncId: syncId ?? this.syncId,
-      updatedAt: updatedAt ?? DateTime.now().toUtc(), // Update timestamp on any copy
+      updatedAt: updatedAt ?? (updateTimestamp ? DateTime.now().toUtc() : this.updatedAt),
       deviceId: deviceId ?? this.deviceId,
       isManualEdit: isManualEdit ?? this.isManualEdit,
     );
@@ -111,7 +112,7 @@ class CountryVisit extends HiveObject {
   CountryVisit asManualEdit() {
     return copyWith(
       isManualEdit: true,
-      updatedAt: DateTime.now().toUtc(),
+      updateTimestamp: true,
     );
   }
 

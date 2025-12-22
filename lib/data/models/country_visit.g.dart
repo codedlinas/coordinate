@@ -76,3 +76,6 @@ class CountryVisitAdapter extends TypeAdapter<CountryVisit> {
           typeId == other.typeId;
 }
 
+
+
+

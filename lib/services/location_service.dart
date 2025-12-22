@@ -1,8 +1,8 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:geocoding/geocoding.dart';
 import 'package:http/http.dart' as http;
+import '../core/logging/app_logger.dart';
 import '../data/models/models.dart' as models;
 
 class LocationService {
@@ -21,28 +21,28 @@ class LocationService {
     // On web, always check permission status
     bool serviceEnabled = await geo.Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      debugPrint('LocationService: Location service is not enabled');
+      AppLogger.location('Location service is not enabled');
       return false;
     }
 
     geo.LocationPermission permission = await geo.Geolocator.checkPermission();
-    debugPrint('LocationService: Current permission status: $permission');
+    AppLogger.location('Current permission status: $permission');
     
     if (permission == geo.LocationPermission.denied) {
-      debugPrint('LocationService: Permission denied, requesting...');
+      AppLogger.location('Permission denied, requesting...');
       permission = await geo.Geolocator.requestPermission();
-      debugPrint('LocationService: Permission after request: $permission');
+      AppLogger.location('Permission after request: $permission');
       if (permission == geo.LocationPermission.denied) {
         return false;
       }
     }
 
     if (permission == geo.LocationPermission.deniedForever) {
-      debugPrint('LocationService: Permission denied forever');
+      AppLogger.location('Permission denied forever');
       return false;
     }
 
-    debugPrint('LocationService: Permission granted');
+    AppLogger.location('Permission granted');
     return true;
   }
 
@@ -52,7 +52,7 @@ class LocationService {
   }) async {
     final hasPermission = await checkPermission();
     if (!hasPermission) {
-      debugPrint('LocationService: Permission not granted');
+      AppLogger.location('Permission not granted');
       return null;
     }
 
@@ -66,47 +66,49 @@ class LocationService {
         ),
       );
     } catch (e) {
-      debugPrint('LocationService: Error getting position: $e');
+      AppLogger.error('Location', 'Error getting position', e);
       return null;
     }
   }
 
   Future<LocationInfo?> getLocationInfo(double lat, double lng) async {
     try {
-      debugPrint('LocationService: Geocoding coordinates - lat: $lat, lng: $lng');
+      AppLogger.location('Geocoding coordinates - lat: $lat, lng: $lng');
       final placemarks = await placemarkFromCoordinates(lat, lng);
-      debugPrint('LocationService: Got ${placemarks.length} placemarks');
+      AppLogger.location('Got ${placemarks.length} placemarks');
+      
       if (placemarks.isNotEmpty) {
         final place = placemarks.first;
-        debugPrint('LocationService: Place - country: ${place.country}, isoCountryCode: ${place.isoCountryCode}');
-        // Use a fallback if country is empty but we have ISO code
+        AppLogger.location('Place - country: ${place.country}, isoCountryCode: ${place.isoCountryCode}');
+        
         String countryName = place.country ?? '';
         String countryCode = place.isoCountryCode ?? '';
         
-        // If country name is empty but we have coordinates, we can use reverse geocoding API
-        if (countryName.isEmpty && countryCode.isEmpty) {
-          debugPrint('LocationService: Country info missing, trying alternative lookup...');
-          // For now, return null - we'll handle this below
+        // If we have valid country info, return it
+        if (countryCode.isNotEmpty) {
+          return LocationInfo(
+            countryCode: countryCode,
+            countryName: countryName.isEmpty ? 'Unknown' : countryName,
+            city: place.locality ?? place.subAdministrativeArea,
+            region: place.administrativeArea,
+          );
         }
         
-        return LocationInfo(
-          countryCode: countryCode,
-          countryName: countryName.isEmpty ? 'Unknown' : countryName,
-          city: place.locality ?? place.subAdministrativeArea,
-          region: place.administrativeArea,
-        );
+        // Country info missing - fall through to fallback
+        AppLogger.location('Country info missing, trying fallback...');
       }
     } catch (e) {
-      debugPrint('LocationService: Geocoding error: $e');
-      // Try fallback: use HTTP geocoding service
-      return await _getLocationInfoFallback(lat, lng);
+      AppLogger.error('Location', 'Geocoding error', e);
+      // Fall through to fallback
     }
+    
+    // Use HTTP fallback if primary geocoding failed or returned no country info
     return await _getLocationInfoFallback(lat, lng);
   }
   
   Future<LocationInfo?> _getLocationInfoFallback(double lat, double lng) async {
     try {
-      debugPrint('LocationService: Trying fallback geocoding with Nominatim...');
+      AppLogger.location('Trying fallback geocoding with Nominatim...');
       // Use OpenStreetMap Nominatim API (free, no API key required)
       final url = Uri.parse(
         'https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lng&addressdetails=1',
@@ -122,7 +124,7 @@ class LocationService {
         if (address != null) {
           final country = address['country'] as String? ?? '';
           final countryCode = (address['country_code'] as String? ?? '').toUpperCase();
-          debugPrint('LocationService: Fallback got - country: $country, code: $countryCode');
+          AppLogger.location('Fallback got - country: $country, code: $countryCode');
           return LocationInfo(
             countryCode: countryCode,
             countryName: country,
@@ -134,7 +136,7 @@ class LocationService {
         }
       }
     } catch (e) {
-      debugPrint('LocationService: Fallback geocoding failed: $e');
+      AppLogger.error('Location', 'Fallback geocoding failed', e);
     }
     return null;
   }
@@ -142,17 +144,17 @@ class LocationService {
   Future<LocationInfo?> getCurrentLocationInfo({
     models.LocationAccuracy accuracy = models.LocationAccuracy.medium,
   }) async {
-    debugPrint('LocationService: Getting current location info...');
+    AppLogger.location('Getting current location info...');
     final position = await getCurrentPosition(accuracy: accuracy, forceRefresh: true);
     if (position == null) {
-      debugPrint('LocationService: Position is null');
+      AppLogger.location('Position is null');
       return null;
     }
 
-    debugPrint('LocationService: Got position - lat: ${position.latitude}, lng: ${position.longitude}');
+    AppLogger.location('Got position - lat: ${position.latitude}, lng: ${position.longitude}');
     final info = await getLocationInfo(position.latitude, position.longitude);
     if (info == null) {
-      debugPrint('LocationService: LocationInfo is null after geocoding');
+      AppLogger.location('LocationInfo is null after geocoding');
       return null;
     }
 
@@ -160,7 +162,7 @@ class LocationService {
       latitude: position.latitude,
       longitude: position.longitude,
     );
-    debugPrint('LocationService: Returning LocationInfo - ${result.countryName} (${result.countryCode})');
+    AppLogger.location('Returning LocationInfo - ${result.countryName} (${result.countryCode})');
     return result;
   }
 }

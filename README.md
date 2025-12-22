@@ -13,9 +13,10 @@ A travel tracking app that automatically records your country visits and tracks 
 ### 📊 Dashboard (Home Screen)
 - **Days Tracked** - Total days since you started tracking
 - **Countries Visited** - Count of unique countries you've been to
-- **Last 24 Hours** - Recent country visits with duration
+- **Last 24 Hours** - Recent country visits with duration (auto-refreshes every 60 seconds)
 - **Current Country Banner** - Shows where you are when tracking is active
 - **Pull-to-refresh** - Swipe down to refresh data
+- **Auto-refresh** - Time-based displays update automatically without manual refresh
 - **Compact duration display** - Shows time as "2d 5h" format
 
 ### ✈️ Trips Timeline
@@ -107,6 +108,7 @@ lib/
 │   ├── background_location_service.dart   # Background tracking with debounce & lock
 │   ├── foreground_location_service.dart   # Android foreground service
 │   ├── tracking_service.dart              # Foreground tracking
+│   ├── time_ticker_service.dart           # Periodic UI refresh for time-based displays
 │   └── export_service.dart                # JSON/CSV export
 ├── state/
 │   ├── providers.dart         # Riverpod providers
@@ -140,6 +142,13 @@ Background tasks run in separate Dart isolates where Flutter bindings may not be
 ### Platform-Specific Strategies
 - **Android**: WorkManager periodic tasks + optional foreground service
 - **iOS**: Foreground-focused with app lifecycle hooks (background fetch is unreliable on iOS)
+
+### Time-Based UI Auto-Refresh
+Time-relative displays like "Last 24 Hours" need to update as time passes, even without new data:
+- A `TimeTickerService` emits every 60 seconds while the app is open
+- The `timeTickerProvider` (Riverpod StreamProvider) triggers UI rebuilds
+- Dashboard watches this provider to automatically recompute time-based filters
+- Battery-friendly: only runs when app is in foreground, 60-second interval
 
 ## Requirements
 

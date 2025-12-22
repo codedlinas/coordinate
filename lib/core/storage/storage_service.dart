@@ -1,9 +1,18 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import '../../data/models/models.dart';
 
+/// Central constants for Hive box names - use these everywhere to avoid duplication
+class HiveBoxNames {
+  static const String visits = 'country_visits';
+  static const String settings = 'app_settings';
+  static const String backgroundTracking = 'background_tracking';
+  
+  HiveBoxNames._(); // Prevent instantiation
+}
+
 class StorageService {
-  static const String visitsBoxName = 'country_visits';
-  static const String settingsBoxName = 'app_settings';
+  static const String visitsBoxName = HiveBoxNames.visits;
+  static const String settingsBoxName = HiveBoxNames.settings;
   static const String settingsKey = 'settings';
 
   static Future<void> init() async {
@@ -31,6 +40,9 @@ class StorageService {
     await settingsBox.clear();
   }
 }
+
+
+
 
 
 

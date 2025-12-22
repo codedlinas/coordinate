@@ -2,16 +2,43 @@ import '../../core/storage/storage_service.dart';
 import '../models/models.dart';
 
 class VisitsRepository {
+  // Cached computed values - invalidated on data changes
+  List<CountryVisit>? _cachedSortedVisits;
+  Map<String, List<CountryVisit>>? _cachedVisitsByCountry;
+  _AggregatedStats? _cachedStats;
+
+  /// Invalidate all caches - call this after any data modification
+  void _invalidateCache() {
+    _cachedSortedVisits = null;
+    _cachedVisitsByCountry = null;
+    _cachedStats = null;
+  }
+
   List<CountryVisit> getAllVisits() {
-    return StorageService.visitsBox.values.toList()
+    if (_cachedSortedVisits != null) {
+      return _cachedSortedVisits!;
+    }
+    _cachedSortedVisits = StorageService.visitsBox.values.toList()
       ..sort((a, b) => b.entryTime.compareTo(a.entryTime));
+    return _cachedSortedVisits!;
   }
 
   List<CountryVisit> getVisitsForCountry(String countryCode) {
-    return StorageService.visitsBox.values
-        .where((v) => v.countryCode == countryCode)
-        .toList()
-      ..sort((a, b) => b.entryTime.compareTo(a.entryTime));
+    return _getVisitsByCountry()[countryCode] ?? [];
+  }
+
+  Map<String, List<CountryVisit>> _getVisitsByCountry() {
+    if (_cachedVisitsByCountry != null) {
+      return _cachedVisitsByCountry!;
+    }
+    
+    final visits = getAllVisits();
+    final Map<String, List<CountryVisit>> grouped = {};
+    for (final visit in visits) {
+      grouped.putIfAbsent(visit.countryCode, () => []).add(visit);
+    }
+    _cachedVisitsByCountry = grouped;
+    return _cachedVisitsByCountry!;
   }
 
   CountryVisit? getCurrentVisit() {
@@ -21,14 +48,17 @@ class VisitsRepository {
 
   Future<void> addVisit(CountryVisit visit) async {
     await StorageService.visitsBox.put(visit.id, visit);
+    _invalidateCache();
   }
 
   Future<void> updateVisit(CountryVisit visit) async {
     await StorageService.visitsBox.put(visit.id, visit);
+    _invalidateCache();
   }
 
   Future<void> deleteVisit(String id) async {
     await StorageService.visitsBox.delete(id);
+    _invalidateCache();
   }
 
   Future<void> endCurrentVisit(DateTime exitTime) async {
@@ -40,54 +70,84 @@ class VisitsRepository {
   }
 
   Map<String, List<CountryVisit>> getVisitsByCountry() {
-    final visits = getAllVisits();
-    final Map<String, List<CountryVisit>> grouped = {};
-    for (final visit in visits) {
-      grouped.putIfAbsent(visit.countryCode, () => []).add(visit);
-    }
-    return grouped;
+    return Map.unmodifiable(_getVisitsByCountry());
   }
 
   Set<String> getUniqueCountries() {
-    return StorageService.visitsBox.values.map((v) => v.countryCode).toSet();
+    return _getAggregatedStats().uniqueCountries;
   }
 
   int getTotalCountries() {
-    return getUniqueCountries().length;
+    return _getAggregatedStats().uniqueCountries.length;
   }
 
   Duration getTotalDuration() {
-    return StorageService.visitsBox.values
-        .fold(Duration.zero, (sum, visit) => sum + visit.duration);
+    return _getAggregatedStats().totalDuration;
   }
 
   Duration getDurationForCountry(String countryCode) {
-    return StorageService.visitsBox.values
-        .where((v) => v.countryCode == countryCode)
-        .fold(Duration.zero, (sum, visit) => sum + visit.duration);
+    final visits = getVisitsForCountry(countryCode);
+    return visits.fold(Duration.zero, (sum, visit) => sum + visit.duration);
   }
 
   int getVisitCountForCountry(String countryCode) {
-    return StorageService.visitsBox.values
-        .where((v) => v.countryCode == countryCode)
-        .length;
+    return getVisitsForCountry(countryCode).length;
   }
 
   DateTime? getFirstVisitDate() {
-    final visits = getAllVisits();
-    if (visits.isEmpty) return null;
-    return visits.map((v) => v.entryTime).reduce(
-        (a, b) => a.isBefore(b) ? a : b);
+    return _getAggregatedStats().firstVisitDate;
   }
 
   DateTime? getLastVisitDate() {
+    return _getAggregatedStats().lastVisitDate;
+  }
+
+  /// Compute all aggregated stats in a single pass
+  _AggregatedStats _getAggregatedStats() {
+    if (_cachedStats != null) {
+      return _cachedStats!;
+    }
+
     final visits = getAllVisits();
-    if (visits.isEmpty) return null;
-    return visits.first.entryTime;
+    if (visits.isEmpty) {
+      _cachedStats = _AggregatedStats(
+        uniqueCountries: {},
+        totalDuration: Duration.zero,
+        firstVisitDate: null,
+        lastVisitDate: null,
+      );
+      return _cachedStats!;
+    }
+
+    final Set<String> countries = {};
+    Duration totalDuration = Duration.zero;
+    DateTime? firstDate;
+    DateTime? lastDate;
+
+    for (final visit in visits) {
+      countries.add(visit.countryCode);
+      totalDuration += visit.duration;
+      
+      if (firstDate == null || visit.entryTime.isBefore(firstDate)) {
+        firstDate = visit.entryTime;
+      }
+      if (lastDate == null || visit.entryTime.isAfter(lastDate)) {
+        lastDate = visit.entryTime;
+      }
+    }
+
+    _cachedStats = _AggregatedStats(
+      uniqueCountries: countries,
+      totalDuration: totalDuration,
+      firstVisitDate: firstDate,
+      lastVisitDate: lastDate,
+    );
+    return _cachedStats!;
   }
 
   Future<void> clearAllVisits() async {
     await StorageService.visitsBox.clear();
+    _invalidateCache();
   }
 
   // Export all visits as JSON
@@ -121,9 +181,17 @@ class VisitsRepository {
   }
 }
 
+/// Internal class to hold aggregated statistics computed in a single pass
+class _AggregatedStats {
+  final Set<String> uniqueCountries;
+  final Duration totalDuration;
+  final DateTime? firstVisitDate;
+  final DateTime? lastVisitDate;
 
-
-
-
-
-
+  _AggregatedStats({
+    required this.uniqueCountries,
+    required this.totalDuration,
+    required this.firstVisitDate,
+    required this.lastVisitDate,
+  });
+}

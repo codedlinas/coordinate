@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,7 +19,6 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _showTrackingOverlay = false;
-  String _selectedPeriod = 'ALL'; // '365D' or 'ALL'
   bool _isRefreshing = false;
 
   Future<void> _onRefresh() async {
@@ -58,6 +56,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final isTracking = trackingService.isTracking;
     final currentVisit = ref.watch(currentVisitProvider);
     final uniqueCountries = ref.watch(uniqueCountriesProvider);
+    
+    // Watch time ticker to trigger periodic rebuilds for time-based displays
+    // (e.g., "Last 24 Hours" section updates as time passes)
+    ref.watch(timeTickerProvider);
 
     // Calculate days tracked
     final firstVisit = visits.isNotEmpty
@@ -267,21 +269,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ],
                   ),
 
-                  const SizedBox(height: 16),
-
-                  // Period Selector
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildPeriodButton('365D', _selectedPeriod == '365D'),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildPeriodButton('ALL', _selectedPeriod == 'ALL'),
-                      ),
-                    ],
-                  ),
-
                   const SizedBox(height: 32),
 
                   // Last 24 Hours Section
@@ -399,37 +386,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildPeriodButton(String label, bool isSelected) {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        setState(() {
-          _selectedPeriod = label;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? AppTheme.surfaceLight : AppTheme.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? AppTheme.primary : AppTheme.cardBorder,
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: isSelected ? AppTheme.primary : AppTheme.textSecondary,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            fontSize: 16,
-          ),
-        ),
       ),
     );
   }
@@ -684,8 +640,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
 
-            // Stop and Pause Buttons (when tracking)
-            if (isTracking) ...[
+            // Stop Button (when tracking)
+            if (isTracking)
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -714,21 +670,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
-              Center(
-                child: IconButton(
-                  icon: const Icon(Icons.pause, color: Colors.orange, size: 24),
-                  onPressed: () {
-                    HapticFeedback.lightImpact();
-                    // Pause functionality - can be implemented later
-                  },
-                  style: IconButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    padding: const EdgeInsets.all(8),
-                  ),
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -749,54 +690,29 @@ class _TrackingCountryDisplay extends ConsumerStatefulWidget {
 }
 
 class _TrackingCountryDisplayState extends ConsumerState<_TrackingCountryDisplay> {
-  Timer? _refreshTimer;
-
   @override
   void initState() {
     super.initState();
     widget.trackingService.addListener(_onTrackingChanged);
-    _startRefreshTimer();
   }
 
   @override
   void dispose() {
     widget.trackingService.removeListener(_onTrackingChanged);
-    _refreshTimer?.cancel();
     super.dispose();
   }
 
   void _onTrackingChanged() {
-    if (mounted && widget.trackingService.isTracking) {
+    if (mounted) {
+      // Refresh visits when tracking state changes (e.g., new visit created)
       ref.read(visitsProvider.notifier).refresh();
-      setState(() {});
-    }
-  }
-
-  void _startRefreshTimer() {
-    _refreshTimer?.cancel();
-    if (widget.trackingService.isTracking) {
-      _refreshTimer = Timer.periodic(const Duration(seconds: 2), (_) {
-        if (mounted) {
-          ref.read(visitsProvider.notifier).refresh();
-          setState(() {});
-        }
-      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final serviceVisit = widget.trackingService.currentVisit;
-    final providerVisit = ref.watch(currentVisitProvider);
-    final currentVisit = serviceVisit ?? providerVisit;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (widget.trackingService.isTracking) {
-        _startRefreshTimer();
-      } else {
-        _refreshTimer?.cancel();
-      }
-    });
+    // Watch the current visit from the provider - this is reactive via Riverpod
+    final currentVisit = ref.watch(currentVisitProvider);
 
     if (currentVisit != null) {
       return Padding(

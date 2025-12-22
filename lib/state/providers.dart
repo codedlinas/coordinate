@@ -5,17 +5,21 @@ import '../data/repositories/repositories.dart';
 import '../services/background_location_service.dart';
 import '../services/foreground_location_service.dart';
 import '../services/location_service.dart';
+import '../services/time_ticker_service.dart';
 
 // Repository providers
 final visitsRepositoryProvider = Provider((ref) => VisitsRepository());
 final settingsRepositoryProvider = Provider((ref) => SettingsRepository());
+
+// Location service provider - singleton instance shared across the app
+final locationServiceProvider = Provider((ref) => LocationService());
 
 // Background location service provider
 // TODO: When adding remote sync, ensure background updates are reconciled
 //       with server state to avoid duplicate/conflicting segments.
 final backgroundLocationServiceProvider = Provider<BackgroundLocationService>((ref) {
   final visitsRepo = ref.watch(visitsRepositoryProvider);
-  final locationService = LocationService();
+  final locationService = ref.watch(locationServiceProvider);
   return BackgroundLocationService(visitsRepo, locationService);
 });
 
@@ -186,10 +190,11 @@ class CountryStats {
       visits.isNotEmpty ? visits.first.countryName : countryCode;
 }
 
-// Global stats provider
+// Global stats provider - uses repository's cached aggregated stats
 final globalStatsProvider = Provider<GlobalStats>((ref) {
-  final repository = ref.watch(visitsRepositoryProvider);
+  // Watch visitsProvider to trigger rebuild when visits change
   final visits = ref.watch(visitsProvider);
+  final repository = ref.read(visitsRepositoryProvider);
 
   return GlobalStats(
     totalCountries: repository.getTotalCountries(),
@@ -215,4 +220,17 @@ class GlobalStats {
     this.lastVisit,
   });
 }
+
+// Time ticker service provider (singleton)
+final _timeTickerService = TimeTickerService();
+
+/// Stream provider that emits every 60 seconds to trigger time-based UI updates.
+/// Watch this in screens that display time-relative data (e.g., "Last 24 Hours").
+final timeTickerProvider = StreamProvider<DateTime>((ref) {
+  _timeTickerService.start();
+  ref.onDispose(() {
+    // Don't stop the service on dispose - it's a singleton shared across the app
+  });
+  return _timeTickerService.tickStream;
+});
 

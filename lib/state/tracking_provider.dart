@@ -1,36 +1,57 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/location_service.dart';
 import '../services/tracking_service.dart';
 import 'providers.dart';
 
-final locationServiceProvider = Provider((ref) => LocationService());
-
-final trackingServiceProvider = Provider((ref) {
+final trackingServiceProvider = Provider<TrackingService>((ref) {
   final service = TrackingService(
     ref.watch(locationServiceProvider),
     ref.watch(visitsRepositoryProvider),
     ref.watch(settingsRepositoryProvider),
   );
   
-  // Listen to tracking service changes and refresh visits when visits are created
-  service.addListener(() {
+  // Use ref.onDispose to properly clean up the listener
+  void onServiceChanged() {
     // Refresh visits provider when tracking service notifies of changes
-    // This ensures UI updates when visits are created/updated
     Future.microtask(() {
       ref.read(visitsProvider.notifier).refresh();
     });
+  }
+  
+  service.addListener(onServiceChanged);
+  
+  // Ensure listener is removed when provider is disposed
+  ref.onDispose(() {
+    service.removeListener(onServiceChanged);
   });
   
   return service;
 });
 
-final isTrackingProvider = StreamProvider<bool>((ref) async* {
+/// StreamProvider that properly emits tracking state changes
+final isTrackingProvider = StreamProvider<bool>((ref) {
   final service = ref.watch(trackingServiceProvider);
-  yield service.isTracking;
-
-  // Listen to changes
-  service.addListener(() {
-    // Trigger rebuild
+  
+  // Create a stream controller to emit tracking state changes
+  final controller = StreamController<bool>();
+  
+  // Emit initial state
+  controller.add(service.isTracking);
+  
+  // Listen for changes and emit new values
+  void onTrackingChanged() {
+    if (!controller.isClosed) {
+      controller.add(service.isTracking);
+    }
+  }
+  
+  service.addListener(onTrackingChanged);
+  
+  // Clean up when provider is disposed
+  ref.onDispose(() {
+    service.removeListener(onTrackingChanged);
+    controller.close();
   });
+  
+  return controller.stream;
 });
-

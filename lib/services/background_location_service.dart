@@ -6,6 +6,7 @@ import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:workmanager/workmanager.dart';
+import '../core/storage/storage_service.dart';
 import '../data/models/models.dart';
 import '../data/repositories/repositories.dart';
 import 'location_service.dart';
@@ -13,10 +14,10 @@ import 'location_service.dart';
 /// Background task name for WorkManager
 const String backgroundTaskName = 'com.coordinate.backgroundLocationCheck';
 
-/// Box names - must match StorageService
-const String _visitsBoxName = 'country_visits';
-const String _settingsBoxName = 'app_settings';
-const String _bgTrackingBoxName = 'background_tracking';
+/// Box names - imported from central HiveBoxNames
+const String _visitsBoxName = HiveBoxNames.visits;
+const String _settingsBoxName = HiveBoxNames.settings;
+const String _bgTrackingBoxName = HiveBoxNames.backgroundTracking;
 
 /// Number of consecutive checks required to confirm a country change.
 /// This prevents flip-flopping near borders.
@@ -64,12 +65,24 @@ Future<void> _releaseLock(Box bgBox) async {
 
 /// Initialize Hive safely for background isolate.
 /// Uses path_provider instead of Hive.initFlutter() which can fail in isolates.
+/// Checks if already initialized to prevent errors on repeated calls.
 Future<void> _initHiveForBackground() async {
   try {
+    // Check if Hive is already initialized by attempting to access it
+    if (Hive.isBoxOpen(_visitsBoxName) || Hive.isBoxOpen(_bgTrackingBoxName)) {
+      debugPrint('BackgroundLocationService: Hive already initialized');
+      return;
+    }
+    
     final appDir = await getApplicationDocumentsDirectory();
     Hive.init(appDir.path);
     debugPrint('BackgroundLocationService: Hive initialized at ${appDir.path}');
   } catch (e) {
+    // If already initialized, Hive.init throws - that's OK
+    if (e.toString().contains('already initialized')) {
+      debugPrint('BackgroundLocationService: Hive was already initialized');
+      return;
+    }
     debugPrint('BackgroundLocationService: Hive init error: $e');
     rethrow;
   }
