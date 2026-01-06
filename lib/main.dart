@@ -5,6 +5,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'core/storage/storage_service.dart';
 import 'services/foreground_location_service.dart';
 import 'state/providers.dart';
+import 'state/tracking_provider.dart';
 import 'ui/screens/screens.dart';
 import 'ui/screens/onboarding_screen.dart';
 import 'ui/theme/app_theme.dart';
@@ -102,6 +103,11 @@ class _CoordinateAppState extends ConsumerState<CoordinateApp> with WidgetsBindi
         await fgService.initialize();
         debugPrint('ForegroundLocationService initialized successfully');
       }
+      
+      // Initialize tracking service and restore previous tracking state
+      final trackingService = ref.read(trackingServiceProvider);
+      await trackingService.initialize();
+      debugPrint('TrackingService initialized successfully');
     } catch (e) {
       debugPrint('Failed to initialize location services: $e');
       // Don't crash the app - background tracking is optional

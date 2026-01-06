@@ -13,6 +13,7 @@ class TrackingService extends ChangeNotifier {
   Timer? _trackingTimer;
   bool _isTracking = false;
   CountryVisit? _currentVisit;
+  bool _initialized = false;
 
   TrackingService(
     this._locationService,
@@ -24,7 +25,27 @@ class TrackingService extends ChangeNotifier {
 
   CountryVisit? get currentVisit => _currentVisit;
 
-  Future<void> startTracking() async {
+  /// Initialize tracking service and restore previous tracking state.
+  /// Call this once after app startup.
+  Future<void> initialize() async {
+    if (_initialized) return;
+    _initialized = true;
+
+    // Check if tracking was previously enabled
+    final settings = _settingsRepository.getSettings();
+    if (settings.trackingEnabled) {
+      AppLogger.tracking('Restoring tracking state - was enabled');
+      try {
+        await startTracking(restoring: true);
+      } catch (e) {
+        AppLogger.error('Tracking', 'Failed to restore tracking state', e);
+        // If we can't restore (e.g., permissions revoked), disable the setting
+        await _settingsRepository.setTrackingEnabled(false);
+      }
+    }
+  }
+
+  Future<void> startTracking({bool restoring = false}) async {
     if (_isTracking) return;
 
     // Check permissions
@@ -34,6 +55,12 @@ class TrackingService extends ChangeNotifier {
     }
 
     _isTracking = true;
+    
+    // Persist the tracking state (skip if just restoring to avoid redundant write)
+    if (!restoring) {
+      await _settingsRepository.setTrackingEnabled(true);
+    }
+    
     notifyListeners();
 
     // Do initial check
@@ -53,6 +80,10 @@ class TrackingService extends ChangeNotifier {
     _trackingTimer?.cancel();
     _trackingTimer = null;
     _isTracking = false;
+    
+    // Persist the tracking state
+    await _settingsRepository.setTrackingEnabled(false);
+    
     notifyListeners();
   }
 

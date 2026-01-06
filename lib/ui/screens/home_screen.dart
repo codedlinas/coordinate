@@ -70,9 +70,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         : 0.0;
 
     // Filter visits for last 24 hours
+    // A visit should show if any part of it falls within the last 24 hours:
+    // - Entry time is within 24 hours, OR
+    // - Exit time is within 24 hours, OR
+    // - Visit is ongoing (no exit time = still there now)
     final now = DateTime.now();
+    final twentyFourHoursAgo = now.subtract(const Duration(hours: 24));
     final last24Hours = visits
-        .where((v) => now.difference(v.entryTime).inHours < 24)
+        .where((v) {
+          // Ongoing visit - always include (you're there now)
+          if (v.exitTime == null) return true;
+          // Entry within last 24 hours
+          if (v.entryTime.isAfter(twentyFourHoursAgo)) return true;
+          // Exit within last 24 hours
+          if (v.exitTime!.isAfter(twentyFourHoursAgo)) return true;
+          return false;
+        })
         .toList()
       ..sort((a, b) => b.entryTime.compareTo(a.entryTime));
 
