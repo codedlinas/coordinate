@@ -112,8 +112,8 @@ class _TrackingHealthScreenState extends ConsumerState<TrackingHealthScreen> {
         final success = await fgService.enable();
         if (!success && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to enable high-reliability mode'),
+            SnackBar(
+              content: const Text('Failed to enable high-reliability mode'),
               backgroundColor: AppTheme.error,
             ),
           );
@@ -142,8 +142,8 @@ class _TrackingHealthScreenState extends ConsumerState<TrackingHealthScreen> {
         ref.read(visitsProvider.notifier).refresh();
         
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Location check completed'),
+          SnackBar(
+            content: const Text('Location check completed'),
             backgroundColor: AppTheme.success,
           ),
         );
@@ -319,7 +319,7 @@ class _TrackingHealthScreenState extends ConsumerState<TrackingHealthScreen> {
                         if (lastUpdate != null) ...[
                           Text(
                             _formatDateTime(lastUpdate),
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppTheme.textPrimary,
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
@@ -535,7 +535,7 @@ class _TrackingHealthScreenState extends ConsumerState<TrackingHealthScreen> {
         children: [
           Text(
             platform,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppTheme.textPrimary,
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -593,7 +593,7 @@ class _TrackingHealthScreenState extends ConsumerState<TrackingHealthScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'High Reliability Mode',
                       style: TextStyle(
                         color: AppTheme.textPrimary,

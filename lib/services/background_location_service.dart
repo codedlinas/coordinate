@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -10,6 +11,7 @@ import '../core/storage/storage_service.dart';
 import '../data/models/models.dart';
 import '../data/repositories/repositories.dart';
 import 'location_service.dart';
+import 'notification_service.dart';
 
 /// Background task name for WorkManager
 const String backgroundTaskName = 'com.coordinate.backgroundLocationCheck';
@@ -297,7 +299,25 @@ void callbackDispatcher() {
         await bgBox.put('lastCountryCode', locationInfo.countryCode);
         await bgBox.put('lastCountrySource', 'fresh');
         
-        // TODO: Trigger local notification for country change
+        // Trigger local notification for country change (if settings allow)
+        if (currentVisit != null) {
+          // Only notify on actual country changes, not initial visits
+          try {
+            final settingsBox = await Hive.openBox<AppSettings>('settings');
+            final settings = settingsBox.get('app_settings') ?? AppSettings();
+            if (settings.notificationsEnabled && settings.countryChangeNotifications) {
+              // Initialize and show notification from background isolate
+              await NotificationService().initialize();
+              await NotificationService().showCountryChangeNotification(
+                countryName: locationInfo.countryName,
+                countryCode: locationInfo.countryCode,
+              );
+              debugPrint('BackgroundLocationService: Showed country change notification');
+            }
+          } catch (e) {
+            debugPrint('BackgroundLocationService: Failed to show notification: $e');
+          }
+        }
       } else if (currentCountryCode == locationInfo.countryCode) {
         debugPrint('BackgroundLocationService: Still in ${locationInfo.countryName}');
         await bgBox.put('lastCountrySource', 'cached');
@@ -338,10 +358,14 @@ class BackgroundLocationService extends ChangeNotifier {
   DateTime? _lastBackgroundUpdate;
   String? _lastError;
   String _permissionStatus = 'unknown';
+  bool _isIOSMonitoringActive = false;
   
   // Persistence box for background state
   static const String _boxName = 'background_tracking';
   Box? _box;
+  
+  // iOS Significant Location Change MethodChannel
+  static const MethodChannel _iosLocationChannel = MethodChannel('com.coordinate/significant_location');
   
   BackgroundLocationService(this._visitsRepository, this._locationService);
   
@@ -354,8 +378,8 @@ class BackgroundLocationService extends ChangeNotifier {
   /// Returns a user-friendly description of the tracking strategy for this platform.
   static String get platformTrackingDescription {
     if (isIOS) {
-      return 'iOS: Foreground tracking only. Location is checked when the app is open. '
-          'For accurate tracking, open the app periodically or use manual edits.';
+      return 'iOS: Significant Location Change monitoring detects movement (~500m). '
+          'For best results, grant "Always" location permission.';
     } else if (isAndroid) {
       return 'Android: Background tracking via WorkManager (checks every ~15 min). '
           'For best reliability, disable battery optimization for Coordinate.';
@@ -364,13 +388,14 @@ class BackgroundLocationService extends ChangeNotifier {
     }
   }
   
-  /// Returns true if true background tracking is supported (Android only).
-  static bool get supportsBackgroundTracking => isAndroid;
+  /// Returns true if background tracking is supported (Android via WorkManager, iOS via Significant Location Change).
+  static bool get supportsBackgroundTracking => isAndroid || isIOS;
   
   bool get isBackgroundEnabled => _isBackgroundEnabled;
   DateTime? get lastBackgroundUpdate => _lastBackgroundUpdate;
   String? get lastError => _lastError;
   String get permissionStatus => _permissionStatus;
+  bool get isIOSMonitoringActive => _isIOSMonitoringActive;
   
   /// Initialize the background location service.
   /// Call this once at app startup.
@@ -387,7 +412,7 @@ class BackgroundLocationService extends ChangeNotifier {
       
       await _updatePermissionStatus();
       
-      // Only initialize WorkManager on Android - iOS uses foreground-only tracking
+      // Only initialize WorkManager on Android - iOS uses Significant Location Change
       if (isAndroid) {
         await Workmanager().initialize(
           callbackDispatcher,
@@ -399,9 +424,15 @@ class BackgroundLocationService extends ChangeNotifier {
           await _startBackgroundTracking();
         }
       } else if (isIOS) {
-        debugPrint('BackgroundLocationService: iOS detected - using foreground-only tracking');
-        // On iOS, we don't register background tasks
-        // Tracking happens when the app is in foreground via onAppLifecycleChanged
+        debugPrint('BackgroundLocationService: iOS detected - setting up Significant Location Change');
+        
+        // Set up method channel handler for iOS significant location changes
+        _iosLocationChannel.setMethodCallHandler(_handleIOSLocationUpdate);
+        
+        // If was enabled before, restart iOS monitoring
+        if (_isBackgroundEnabled) {
+          await _startIOSSignificantLocationMonitoring();
+        }
       }
       
       notifyListeners();
@@ -476,7 +507,12 @@ class BackgroundLocationService extends ChangeNotifier {
         debugPrint('BackgroundLocationService: Have "when in use", background may be limited');
       }
       
-      await _startBackgroundTracking();
+      // Start platform-specific background tracking
+      if (isAndroid) {
+        await _startBackgroundTracking();
+      } else if (isIOS) {
+        await _startIOSSignificantLocationMonitoring();
+      }
       
       _isBackgroundEnabled = true;
       await _box?.put('enabled', true);
@@ -527,9 +563,11 @@ class BackgroundLocationService extends ChangeNotifier {
   /// Disable background location tracking.
   Future<void> disableBackgroundTracking() async {
     try {
-      // Only cancel WorkManager task on Android
+      // Cancel platform-specific background tracking
       if (isAndroid) {
         await Workmanager().cancelByUniqueName(backgroundTaskName);
+      } else if (isIOS) {
+        await _stopIOSSignificantLocationMonitoring();
       }
       _isBackgroundEnabled = false;
       await _box?.put('enabled', false);
@@ -676,6 +714,8 @@ class BackgroundLocationService extends ChangeNotifier {
       }
       
       if (shouldCommit) {
+        final isCountryChange = currentVisit != null;
+        
         if (currentVisit != null) {
           await _visitsRepository.endCurrentVisit(now);
         }
@@ -695,6 +735,23 @@ class BackgroundLocationService extends ChangeNotifier {
         await _visitsRepository.addVisit(visit);
         await _box?.put('lastCountryCode', locationInfo.countryCode);
         await _box?.put('lastCountrySource', 'fresh');
+        
+        // Show country change notification if this is a country change (not first visit)
+        if (isCountryChange) {
+          try {
+            // Check settings before showing notification
+            final settingsBox = await Hive.openBox<AppSettings>(_settingsBoxName);
+            final settings = settingsBox.get('app_settings') ?? AppSettings();
+            if (settings.notificationsEnabled && settings.countryChangeNotifications) {
+              await NotificationService().showCountryChangeNotification(
+                countryName: locationInfo.countryName,
+                countryCode: locationInfo.countryCode,
+              );
+            }
+          } catch (e) {
+            debugPrint('BackgroundLocationService: Failed to show notification: $e');
+          }
+        }
       } else if (currentCountryCode == locationInfo.countryCode) {
         await _box?.put('lastCountrySource', 'cached');
       }
@@ -709,6 +766,92 @@ class BackgroundLocationService extends ChangeNotifier {
       if (lockAcquired && _box != null) {
         await _releaseLock(_box!);
       }
+    }
+  }
+  
+  // MARK: - iOS Significant Location Change
+  
+  /// Handle incoming location updates from iOS native code.
+  Future<dynamic> _handleIOSLocationUpdate(MethodCall call) async {
+    if (call.method != 'onSignificantLocationChange') {
+      return null;
+    }
+    
+    final args = call.arguments as Map?;
+    if (args == null) return null;
+    
+    final latitude = args['latitude'] as double?;
+    final longitude = args['longitude'] as double?;
+    
+    if (latitude == null || longitude == null) {
+      debugPrint('BackgroundLocationService: iOS location update missing coordinates');
+      return null;
+    }
+    
+    debugPrint('BackgroundLocationService: Received iOS significant location change: $latitude, $longitude');
+    
+    // Process the location update
+    await _processIOSLocationUpdate(latitude, longitude);
+    return null;
+  }
+  
+  /// Process a location update received from iOS Significant Location Change.
+  Future<void> _processIOSLocationUpdate(double latitude, double longitude) async {
+    try {
+      // Reverse geocode the location to get country info
+      final locationInfo = await _locationService.getLocationInfoFromCoordinates(
+        latitude: latitude,
+        longitude: longitude,
+      );
+      
+      if (locationInfo == null) {
+        debugPrint('BackgroundLocationService: Could not geocode iOS location');
+        return;
+      }
+      
+      debugPrint('BackgroundLocationService: iOS location is in ${locationInfo.countryName}');
+      
+      // Update last check time
+      _lastBackgroundUpdate = DateTime.now();
+      await _box?.put('lastUpdate', _lastBackgroundUpdate!.toIso8601String());
+      
+      // Use forceLocationCheck with the iOS location
+      // This will handle debouncing and country change detection
+      await forceLocationCheck(bypassDebounce: false);
+    } catch (e) {
+      _lastError = 'iOS location processing failed: $e';
+      debugPrint('BackgroundLocationService: $_lastError');
+      notifyListeners();
+    }
+  }
+  
+  /// Start iOS Significant Location Change monitoring.
+  Future<void> _startIOSSignificantLocationMonitoring() async {
+    if (!isIOS) return;
+    
+    try {
+      await _iosLocationChannel.invokeMethod('startMonitoring');
+      _isIOSMonitoringActive = true;
+      debugPrint('BackgroundLocationService: Started iOS Significant Location Change monitoring');
+      notifyListeners();
+    } catch (e) {
+      debugPrint('BackgroundLocationService: Failed to start iOS monitoring: $e');
+      _lastError = 'Failed to start iOS monitoring: $e';
+      notifyListeners();
+    }
+  }
+  
+  /// Stop iOS Significant Location Change monitoring.
+  Future<void> _stopIOSSignificantLocationMonitoring() async {
+    if (!isIOS) return;
+    
+    try {
+      await _iosLocationChannel.invokeMethod('stopMonitoring');
+      _isIOSMonitoringActive = false;
+      debugPrint('BackgroundLocationService: Stopped iOS Significant Location Change monitoring');
+      notifyListeners();
+    } catch (e) {
+      debugPrint('BackgroundLocationService: Failed to stop iOS monitoring: $e');
     }
   }
   

@@ -55,6 +55,21 @@ class SettingsRepository {
     await saveSettings(updated);
   }
 
+  Future<void> setTravelRemindersEnabled(bool enabled) async {
+    final settings = getSettings();
+    final updated = settings.copyWith(travelRemindersEnabled: enabled);
+    await saveSettings(updated);
+  }
+
+  Future<void> setTravelReminderTime(int hour, int minute) async {
+    final settings = getSettings();
+    final updated = settings.copyWith(
+      travelReminderHour: hour,
+      travelReminderMinute: minute,
+    );
+    await saveSettings(updated);
+  }
+
   Future<void> resetSettings() async {
     await saveSettings(AppSettings());
   }

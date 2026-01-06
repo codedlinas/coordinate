@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../theme/app_theme.dart';
 import '../../services/location_service.dart';
+import '../../services/notification_service.dart';
 import '../../state/tracking_provider.dart';
 import '../../state/providers.dart';
 import 'home_screen.dart';
@@ -28,6 +29,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       final hasPermission = await locationService.checkPermission();
 
       if (hasPermission && mounted) {
+        // Request notification permissions (non-blocking)
+        try {
+          await NotificationService().requestPermissions();
+        } catch (e) {
+          // Notification permission denial is not critical
+          debugPrint('Notification permission not granted: $e');
+        }
+        
         // Mark onboarding as seen
         final onboardingBox = await Hive.openBox('app_preferences');
         await onboardingBox.put('hasSeenOnboarding', true);
@@ -43,8 +52,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             _isCheckingPermission = false;
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Location permission is required for tracking'),
+            SnackBar(
+              content: const Text('Location permission is required for tracking'),
               backgroundColor: AppTheme.error,
             ),
           );
@@ -200,7 +209,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 description: 'Optimized for minimal battery impact',
               ),
 
-              // iOS tracking info - foreground only
+              // iOS tracking info - Significant Location Change
               if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) ...[
                 const SizedBox(height: 24),
                 Container(
@@ -235,9 +244,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        'On iOS, location is checked when you open the app. '
-                        'For best results, open Coordinate when crossing borders '
-                        'or use manual edits to adjust trip times.',
+                        'Coordinate uses Significant Location Change to detect border crossings '
+                        'even when the app is closed. For best results, choose "Always Allow" '
+                        'when asked for location permission.',
                         style: TextStyle(
                           color: AppTheme.textSecondary,
                           fontSize: 13,

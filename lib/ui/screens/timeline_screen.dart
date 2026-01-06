@@ -99,7 +99,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
                   ),
                   child: Text(
                     '${trips.length} trips • ${uniqueCountries.length} countries',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppTheme.primary,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -123,7 +123,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
                       color: AppTheme.textMuted.withValues(alpha: 0.4),
                     ),
                     const SizedBox(height: 24),
-                    const Text(
+                    Text(
                       'No trips yet',
                       style: TextStyle(
                         color: AppTheme.textPrimary,
@@ -250,7 +250,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
                                       Flexible(
                                         child: Text(
                                           trip.countryName,
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontSize: 16,
                                             fontWeight: FontWeight.w600,
                                             color: AppTheme.textPrimary,
@@ -269,7 +269,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
                                             color: AppTheme.primary,
                                             borderRadius: BorderRadius.circular(4),
                                           ),
-                                          child: const Text(
+                                          child: Text(
                                             'NOW',
                                             style: TextStyle(
                                               color: AppTheme.background,

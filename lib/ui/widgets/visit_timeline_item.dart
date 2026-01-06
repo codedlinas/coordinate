@@ -108,7 +108,7 @@ class VisitTimelineItem extends StatelessWidget {
                             color: AppTheme.primary,
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: const Text(
+                          child: Text(
                             'ONGOING',
                             style: TextStyle(
                               color: AppTheme.background,
@@ -170,7 +170,7 @@ class VisitTimelineItem extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.schedule_rounded,
                           size: 14,
                           color: AppTheme.textSecondary,
@@ -191,7 +191,7 @@ class VisitTimelineItem extends StatelessWidget {
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.location_on_outlined,
                           size: 14,
                           color: AppTheme.textMuted,

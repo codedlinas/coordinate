@@ -112,13 +112,13 @@ class CountryCard extends StatelessWidget {
                                 Container(
                                   width: 6,
                                   height: 6,
-                                  decoration: const BoxDecoration(
+                                  decoration: BoxDecoration(
                                     color: AppTheme.primary,
                                     shape: BoxShape.circle,
                                   ),
                                 ),
                                 const SizedBox(width: 6),
-                                const Text(
+                                Text(
                                   'NOW',
                                   style: TextStyle(
                                     color: AppTheme.primary,
@@ -154,7 +154,7 @@ class CountryCard extends StatelessWidget {
               ),
 
               // Arrow
-              const Icon(
+              Icon(
                 Icons.chevron_right_rounded,
                 color: AppTheme.textMuted,
               ),

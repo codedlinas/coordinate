@@ -33,6 +33,7 @@ dependencies:
   
   # Notifications
   flutter_local_notifications: ^18.0.1
+  timezone: ^0.9.4  # Required for scheduled notifications
   
   # Country Flags
   country_flags: ^3.3.0

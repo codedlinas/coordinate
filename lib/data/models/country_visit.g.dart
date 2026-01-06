@@ -75,7 +75,3 @@ class CountryVisitAdapter extends TypeAdapter<CountryVisit> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
-
-
-
-

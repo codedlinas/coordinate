@@ -1,4 +1,5 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
+// Modified for null-safety migration handling
 
 part of 'app_settings.dart';
 
@@ -24,13 +25,17 @@ class AppSettingsAdapter extends TypeAdapter<AppSettings> {
       trackingIntervalMinutes: fields[4] as int,
       trackingEnabled: fields[5] as bool,
       lastTrackingTime: fields[6] as DateTime?,
+      // Handle migration from old data: use defaults if fields don't exist
+      travelRemindersEnabled: (fields[7] as bool?) ?? false,
+      travelReminderHour: (fields[8] as int?) ?? 8,
+      travelReminderMinute: (fields[9] as int?) ?? 0,
     );
   }
 
   @override
   void write(BinaryWriter writer, AppSettings obj) {
     writer
-      ..writeByte(7)
+      ..writeByte(10)
       ..writeByte(0)
       ..write(obj.accuracy)
       ..writeByte(1)
@@ -44,7 +49,13 @@ class AppSettingsAdapter extends TypeAdapter<AppSettings> {
       ..writeByte(5)
       ..write(obj.trackingEnabled)
       ..writeByte(6)
-      ..write(obj.lastTrackingTime);
+      ..write(obj.lastTrackingTime)
+      ..writeByte(7)
+      ..write(obj.travelRemindersEnabled)
+      ..writeByte(8)
+      ..write(obj.travelReminderHour)
+      ..writeByte(9)
+      ..write(obj.travelReminderMinute);
   }
 
   @override
@@ -101,7 +112,3 @@ class LocationAccuracyAdapter extends TypeAdapter<LocationAccuracy> {
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }
-
-
-
-

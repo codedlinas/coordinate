@@ -7,6 +7,7 @@ import '../../state/providers.dart';
 import '../../state/tracking_provider.dart';
 import '../../services/tracking_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/palette_picker.dart';
 import 'settings_screen.dart';
 import 'timeline_screen.dart';
 
@@ -102,6 +103,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         backgroundColor: AppTheme.background,
         elevation: 0,
         actions: [
+          // Palette toggle button
+          IconButton(
+            icon: const Icon(Icons.palette_outlined),
+            tooltip: 'Theme Palette',
+            onPressed: () => showPalettePicker(context),
+          ),
           IconButton(
             icon: const Icon(Icons.timeline),
             onPressed: () {
@@ -157,7 +164,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           Container(
                             width: 8,
                             height: 8,
-                            decoration: const BoxDecoration(
+                            decoration: BoxDecoration(
                               color: AppTheme.success,
                               shape: BoxShape.circle,
                             ),
@@ -172,7 +179,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           Expanded(
                             child: Text(
                               'Currently in ${currentVisit.countryName}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: AppTheme.success,
                                 fontWeight: FontWeight.w600,
                                 fontSize: 14,
@@ -253,7 +260,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ),
                           child: Column(
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.public,
                                 color: AppTheme.primary,
                                 size: 28,
@@ -261,7 +268,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               const SizedBox(height: 8),
                               Text(
                                 '${uniqueCountries.length}',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 40,
                                   fontWeight: FontWeight.bold,
                                   color: AppTheme.textPrimary,
@@ -270,7 +277,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               const SizedBox(height: 4),
                               Text(
                                 uniqueCountries.length == 1 ? 'Country' : 'Countries',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 14,
                                   color: AppTheme.textSecondary,
                                 ),
@@ -288,7 +295,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
+                      Text(
                         'Last 24 Hours',
                         style: TextStyle(
                           fontSize: 20,
@@ -297,7 +304,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                       ),
                       if (_isRefreshing)
-                        const SizedBox(
+                        SizedBox(
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(
@@ -436,7 +443,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: Center(
               child: Text(
                 '$index',
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppTheme.warning,
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
@@ -466,7 +473,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     Flexible(
                       child: Text(
                         countryName,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
                           color: AppTheme.textPrimary,
@@ -482,7 +489,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           color: AppTheme.primary,
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: const Text(
+                        child: Text(
                           'NOW',
                           style: TextStyle(
                             color: AppTheme.background,

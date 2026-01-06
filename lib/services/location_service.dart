@@ -165,6 +165,28 @@ class LocationService {
     AppLogger.location('Returning LocationInfo - ${result.countryName} (${result.countryCode})');
     return result;
   }
+  
+  /// Get location info from specific coordinates.
+  /// Used for iOS Significant Location Change where we receive coordinates
+  /// directly from native code without needing to fetch GPS position.
+  Future<LocationInfo?> getLocationInfoFromCoordinates({
+    required double latitude,
+    required double longitude,
+  }) async {
+    AppLogger.location('Getting location info from coordinates - lat: $latitude, lng: $longitude');
+    final info = await getLocationInfo(latitude, longitude);
+    if (info == null) {
+      AppLogger.location('LocationInfo is null after geocoding coordinates');
+      return null;
+    }
+
+    final result = info.copyWith(
+      latitude: latitude,
+      longitude: longitude,
+    );
+    AppLogger.location('Returning LocationInfo from coordinates - ${result.countryName} (${result.countryCode})');
+    return result;
+  }
 }
 
 class LocationInfo {

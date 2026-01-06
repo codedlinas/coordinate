@@ -4,25 +4,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'core/storage/storage_service.dart';
 import 'services/foreground_location_service.dart';
+import 'services/notification_service.dart';
 import 'state/providers.dart';
+import 'state/theme_provider.dart';
 import 'state/tracking_provider.dart';
 import 'ui/screens/screens.dart';
-import 'ui/screens/onboarding_screen.dart';
 import 'ui/theme/app_theme.dart';
 import 'ui/widgets/phone_wrapper.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Set system UI style for dark theme
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: AppTheme.background,
-      systemNavigationBarIconBrightness: Brightness.light,
-    ),
-  );
 
   // Initialize storage
   await StorageService.init();
@@ -92,6 +83,14 @@ class _CoordinateAppState extends ConsumerState<CoordinateApp> with WidgetsBindi
     _bgServiceInitialized = true;
     
     try {
+      // Initialize notification service
+      final notificationService = NotificationService();
+      await notificationService.initialize();
+      debugPrint('NotificationService initialized successfully');
+      
+      // Restore scheduled travel reminders if enabled
+      await _restoreScheduledReminders(notificationService);
+      
       // Initialize background location service (WorkManager)
       final bgService = ref.read(backgroundLocationServiceProvider);
       await bgService.initialize();
@@ -113,13 +112,46 @@ class _CoordinateAppState extends ConsumerState<CoordinateApp> with WidgetsBindi
       // Don't crash the app - background tracking is optional
     }
   }
+  
+  Future<void> _restoreScheduledReminders(NotificationService notificationService) async {
+    try {
+      final settingsRepo = ref.read(settingsRepositoryProvider);
+      final settings = settingsRepo.getSettings();
+      
+      // Restore travel reminder if it was enabled
+      if (settings.notificationsEnabled && settings.travelRemindersEnabled) {
+        await notificationService.scheduleDailyTravelReminder(
+          hour: settings.travelReminderHour,
+          minute: settings.travelReminderMinute,
+        );
+        debugPrint('Restored travel reminder schedule');
+      }
+    } catch (e) {
+      debugPrint('Failed to restore scheduled reminders: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    // Watch the current palette and update AppTheme
+    final currentPalette = ref.watch(currentPaletteProvider);
+    AppTheme.setCurrentPalette(currentPalette);
+
+    // Update system UI style based on theme brightness
+    final isDark = currentPalette.brightness == Brightness.dark;
+    SystemChrome.setSystemUIOverlayStyle(
+      SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        systemNavigationBarColor: AppTheme.background,
+        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      ),
+    );
+
     return MaterialApp(
       title: 'Coordinate',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
+      theme: AppTheme.buildTheme(currentPalette),
       home: widget.showOnboarding
           ? const PhoneWrapper(child: OnboardingScreen())
           : const PhoneWrapper(child: HomeScreen()),

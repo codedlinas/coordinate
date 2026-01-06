@@ -153,7 +153,7 @@ class _EditTripScreenState extends ConsumerState<EditTripScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: const Text(
+                child: Text(
                   'Save',
                   style: TextStyle(
                     color: AppTheme.background,
@@ -196,14 +196,14 @@ class _EditTripScreenState extends ConsumerState<EditTripScreen> {
             const Spacer(),
             Text(
               value,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppTheme.textPrimary,
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
               ),
             ),
             const SizedBox(width: 8),
-            const Icon(
+            Icon(
               Icons.calendar_today_outlined,
               size: 18,
               color: AppTheme.textMuted,

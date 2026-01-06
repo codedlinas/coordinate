@@ -1,95 +1,123 @@
 import 'package:flutter/material.dart';
+import 'theme_palette.dart';
 
 class AppTheme {
-  // Color palette - Deep space dark with cyan/teal accents
-  static const Color background = Color(0xFF0A0E14);
-  static const Color surface = Color(0xFF151A22);
-  static const Color surfaceLight = Color(0xFF1E2530);
-  static const Color surfaceLighter = Color(0xFF2A3340);
+  // Current palette - defaults to Deep Space, updated by the provider
+  static ThemePalette _currentPalette = ThemePalette.deepSpace;
 
-  static const Color primary = Color(0xFF00E5CC);
-  static const Color primaryDark = Color(0xFF00B8A3);
-  static const Color secondary = Color(0xFF6366F1);
-  static const Color accent = Color(0xFFFF6B6B);
+  /// Set the current palette (called when theme changes)
+  static void setCurrentPalette(ThemePalette palette) {
+    _currentPalette = palette;
+  }
 
-  static const Color textPrimary = Color(0xFFF0F4F8);
-  static const Color textSecondary = Color(0xFF8892A4);
-  static const Color textMuted = Color(0xFF5A6478);
+  /// Get the current palette
+  static ThemePalette get currentPalette => _currentPalette;
 
-  static const Color success = Color(0xFF10B981);
-  static const Color warning = Color(0xFFF59E0B);
-  static const Color error = Color(0xFFEF4444);
+  // ============================================================
+  // Dynamic color getters - these return colors from the current palette
+  // All existing code continues to use AppTheme.primary, etc.
+  // ============================================================
 
-  static const Color divider = Color(0xFF2A3340);
-  static const Color cardBorder = Color(0xFF2A3340);
+  // Background colors
+  static Color get background => _currentPalette.background;
+  static Color get surface => _currentPalette.surface;
+  static Color get surfaceLight => _currentPalette.surfaceLight;
+  static Color get surfaceLighter => _currentPalette.surfaceLighter;
 
-  static ThemeData get darkTheme {
+  // Primary/Accent colors
+  static Color get primary => _currentPalette.primary;
+  static Color get primaryDark => _currentPalette.primaryDark;
+  static Color get secondary => _currentPalette.secondary;
+  static Color get accent => _currentPalette.accent;
+
+  // Text colors
+  static Color get textPrimary => _currentPalette.textPrimary;
+  static Color get textSecondary => _currentPalette.textSecondary;
+  static Color get textMuted => _currentPalette.textMuted;
+
+  // Semantic colors
+  static Color get success => _currentPalette.success;
+  static Color get warning => _currentPalette.warning;
+  static Color get error => _currentPalette.error;
+
+  // UI element colors
+  static Color get divider => _currentPalette.divider;
+  static Color get cardBorder => _currentPalette.cardBorder;
+
+  /// Build a ThemeData from the current palette
+  static ThemeData get darkTheme => buildTheme(_currentPalette);
+
+  /// Build a ThemeData from a specific palette
+  static ThemeData buildTheme(ThemePalette palette) {
+    final isDark = palette.brightness == Brightness.dark;
+
     return ThemeData(
       useMaterial3: true,
-      brightness: Brightness.dark,
-      scaffoldBackgroundColor: background,
-      colorScheme: const ColorScheme.dark(
-        primary: primary,
-        secondary: secondary,
-        surface: surface,
-        error: error,
-        onPrimary: background,
-        onSecondary: textPrimary,
-        onSurface: textPrimary,
-        onError: textPrimary,
+      brightness: palette.brightness,
+      scaffoldBackgroundColor: palette.background,
+      colorScheme: ColorScheme(
+        brightness: palette.brightness,
+        primary: palette.primary,
+        secondary: palette.secondary,
+        surface: palette.surface,
+        error: palette.error,
+        onPrimary: isDark ? palette.background : Colors.white,
+        onSecondary: palette.textPrimary,
+        onSurface: palette.textPrimary,
+        onError: palette.textPrimary,
       ),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: background,
-        foregroundColor: textPrimary,
+      appBarTheme: AppBarTheme(
+        backgroundColor: palette.background,
+        foregroundColor: palette.textPrimary,
         elevation: 0,
         centerTitle: false,
         titleTextStyle: TextStyle(
           fontFamily: 'SpaceMono',
           fontSize: 20,
           fontWeight: FontWeight.w700,
-          color: textPrimary,
+          color: palette.textPrimary,
           letterSpacing: -0.5,
         ),
       ),
       cardTheme: CardThemeData(
-        color: surface,
+        color: palette.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: cardBorder, width: 1),
+          side: BorderSide(color: palette.cardBorder, width: 1),
         ),
       ),
-      listTileTheme: const ListTileThemeData(
-        contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-        iconColor: textSecondary,
-        textColor: textPrimary,
+      listTileTheme: ListTileThemeData(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+        iconColor: palette.textSecondary,
+        textColor: palette.textPrimary,
       ),
-      dividerTheme: const DividerThemeData(
-        color: divider,
+      dividerTheme: DividerThemeData(
+        color: palette.divider,
         thickness: 1,
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return primary;
-          return textMuted;
+          if (states.contains(WidgetState.selected)) return palette.primary;
+          return palette.textMuted;
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return primary.withValues(alpha: 0.3);
+            return palette.primary.withValues(alpha: 0.3);
           }
-          return surfaceLighter;
+          return palette.surfaceLighter;
         }),
       ),
-      sliderTheme: const SliderThemeData(
-        activeTrackColor: primary,
-        inactiveTrackColor: surfaceLighter,
-        thumbColor: primary,
-        overlayColor: Color(0x2900E5CC),
+      sliderTheme: SliderThemeData(
+        activeTrackColor: palette.primary,
+        inactiveTrackColor: palette.surfaceLighter,
+        thumbColor: palette.primary,
+        overlayColor: palette.primary.withValues(alpha: 0.16),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: primary,
-          foregroundColor: background,
+          backgroundColor: palette.primary,
+          foregroundColor: isDark ? palette.background : Colors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           shape: RoundedRectangleBorder(
@@ -103,12 +131,12 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: primary,
+          foregroundColor: palette.primary,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          side: const BorderSide(color: primary, width: 1.5),
+          side: BorderSide(color: palette.primary, width: 1.5),
           textStyle: const TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: 16,
@@ -117,7 +145,7 @@ class AppTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: primary,
+          foregroundColor: palette.primary,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           textStyle: const TextStyle(
             fontWeight: FontWeight.w600,
@@ -125,108 +153,107 @@ class AppTheme {
           ),
         ),
       ),
-      iconTheme: const IconThemeData(
-        color: textSecondary,
+      iconTheme: IconThemeData(
+        color: palette.textSecondary,
         size: 24,
       ),
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: surface,
-        selectedItemColor: primary,
-        unselectedItemColor: textMuted,
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: palette.surface,
+        selectedItemColor: palette.primary,
+        unselectedItemColor: palette.textMuted,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
       ),
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: surfaceLight,
-        contentTextStyle: const TextStyle(color: textPrimary),
+        backgroundColor: palette.surfaceLight,
+        contentTextStyle: TextStyle(color: palette.textPrimary),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
         behavior: SnackBarBehavior.floating,
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: surface,
+        backgroundColor: palette.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
-        titleTextStyle: const TextStyle(
-          color: textPrimary,
+        titleTextStyle: TextStyle(
+          color: palette.textPrimary,
           fontSize: 20,
           fontWeight: FontWeight.w700,
         ),
       ),
-      bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: surface,
-        shape: RoundedRectangleBorder(
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: palette.surface,
+        shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
       ),
-      textTheme: const TextTheme(
+      textTheme: TextTheme(
         displayLarge: TextStyle(
           fontSize: 32,
           fontWeight: FontWeight.w800,
-          color: textPrimary,
+          color: palette.textPrimary,
           letterSpacing: -1,
         ),
         displayMedium: TextStyle(
           fontSize: 28,
           fontWeight: FontWeight.w700,
-          color: textPrimary,
+          color: palette.textPrimary,
           letterSpacing: -0.5,
         ),
         headlineLarge: TextStyle(
           fontSize: 24,
           fontWeight: FontWeight.w700,
-          color: textPrimary,
+          color: palette.textPrimary,
         ),
         headlineMedium: TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.w600,
-          color: textPrimary,
+          color: palette.textPrimary,
         ),
         titleLarge: TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.w600,
-          color: textPrimary,
+          color: palette.textPrimary,
         ),
         titleMedium: TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w600,
-          color: textPrimary,
+          color: palette.textPrimary,
         ),
         bodyLarge: TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w400,
-          color: textPrimary,
+          color: palette.textPrimary,
         ),
         bodyMedium: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w400,
-          color: textSecondary,
+          color: palette.textSecondary,
         ),
         bodySmall: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w400,
-          color: textMuted,
+          color: palette.textMuted,
         ),
         labelLarge: TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w600,
-          color: textPrimary,
+          color: palette.textPrimary,
         ),
         labelMedium: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w500,
-          color: textSecondary,
+          color: palette.textSecondary,
         ),
         labelSmall: TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w500,
-          color: textMuted,
+          color: palette.textMuted,
           letterSpacing: 0.5,
         ),
       ),
     );
   }
 }
-

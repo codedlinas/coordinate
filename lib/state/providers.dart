@@ -5,6 +5,7 @@ import '../data/repositories/repositories.dart';
 import '../services/background_location_service.dart';
 import '../services/foreground_location_service.dart';
 import '../services/location_service.dart';
+import '../services/notification_service.dart';
 import '../services/time_ticker_service.dart';
 
 // Repository providers
@@ -46,6 +47,20 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   Future<void> setNotificationsEnabled(bool enabled) async {
     await _repository.setNotificationsEnabled(enabled);
     refresh();
+    
+    // If disabling notifications, also cancel any scheduled reminders
+    if (!enabled) {
+      await NotificationService().cancelTravelReminder();
+    } else {
+      // If re-enabling and travel reminders were on, reschedule
+      final settings = _repository.getSettings();
+      if (settings.travelRemindersEnabled) {
+        await NotificationService().scheduleDailyTravelReminder(
+          hour: settings.travelReminderHour,
+          minute: settings.travelReminderMinute,
+        );
+      }
+    }
   }
 
   Future<void> setCountryChangeNotifications(bool enabled) async {
@@ -66,6 +81,37 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   Future<void> setTrackingEnabled(bool enabled) async {
     await _repository.setTrackingEnabled(enabled);
     refresh();
+  }
+
+  Future<void> setTravelRemindersEnabled(bool enabled) async {
+    await _repository.setTravelRemindersEnabled(enabled);
+    refresh();
+    
+    // Schedule or cancel the daily reminder notification
+    final notificationService = NotificationService();
+    if (enabled) {
+      final settings = _repository.getSettings();
+      await notificationService.scheduleDailyTravelReminder(
+        hour: settings.travelReminderHour,
+        minute: settings.travelReminderMinute,
+      );
+    } else {
+      await notificationService.cancelTravelReminder();
+    }
+  }
+
+  Future<void> setTravelReminderTime(int hour, int minute) async {
+    await _repository.setTravelReminderTime(hour, minute);
+    refresh();
+    
+    // Reschedule the notification with the new time (if enabled)
+    final settings = _repository.getSettings();
+    if (settings.travelRemindersEnabled && settings.notificationsEnabled) {
+      await NotificationService().scheduleDailyTravelReminder(
+        hour: hour,
+        minute: minute,
+      );
+    }
   }
 
   Future<void> resetSettings() async {

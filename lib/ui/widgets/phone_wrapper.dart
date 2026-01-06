@@ -40,8 +40,8 @@ class PhoneWrapper extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // App title above phone
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 16),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
                       child: Text(
                         'Coordinate',
                         style: TextStyle(

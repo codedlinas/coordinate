@@ -95,7 +95,7 @@ class SettingsScreen extends ConsumerWidget {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 border: accuracy != LocationAccuracy.values.last
-                    ? const Border(
+                    ? Border(
                         bottom: BorderSide(color: AppTheme.divider),
                       )
                     : null,
@@ -204,7 +204,7 @@ class SettingsScreen extends ConsumerWidget {
                   color: AppTheme.secondary.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.timer_rounded,
                   color: AppTheme.secondary,
                   size: 22,
@@ -283,7 +283,7 @@ class SettingsScreen extends ConsumerWidget {
                 color: AppTheme.primary.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.notifications_rounded,
                 color: AppTheme.primary,
                 size: 22,
@@ -308,7 +308,7 @@ class SettingsScreen extends ConsumerWidget {
                 color: AppTheme.success.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.flight_land_rounded,
                 color: AppTheme.success,
                 size: 22,
@@ -333,16 +333,95 @@ class SettingsScreen extends ConsumerWidget {
                 color: AppTheme.secondary.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.summarize_rounded,
                 color: AppTheme.secondary,
                 size: 22,
               ),
             ),
           ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          SwitchListTile(
+            title: const Text('Travel Reminders'),
+            subtitle: Text(settings.travelRemindersEnabled
+                ? 'Daily at ${settings.travelReminderTimeDescription}'
+                : 'Remind me to open app when traveling'),
+            value: settings.travelRemindersEnabled,
+            onChanged: settings.notificationsEnabled
+                ? (value) {
+                    ref
+                        .read(settingsProvider.notifier)
+                        .setTravelRemindersEnabled(value);
+                  }
+                : null,
+            secondary: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppTheme.accent.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.airplanemode_active_rounded,
+                color: AppTheme.accent,
+                size: 22,
+              ),
+            ),
+          ),
+          if (settings.travelRemindersEnabled && settings.notificationsEnabled)
+            ListTile(
+              title: const Text('Reminder Time'),
+              subtitle: Text(settings.travelReminderTimeDescription),
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.accent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.access_time_rounded,
+                  color: AppTheme.accent,
+                  size: 22,
+                ),
+              ),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => _showTimePickerDialog(context, ref, settings),
+            ),
         ],
       ),
     );
+  }
+  
+  void _showTimePickerDialog(BuildContext context, WidgetRef ref, AppSettings settings) async {
+    final TimeOfDay? selectedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(
+        hour: settings.travelReminderHour,
+        minute: settings.travelReminderMinute,
+      ),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            timePickerTheme: TimePickerThemeData(
+              backgroundColor: AppTheme.surface,
+              hourMinuteShape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              dayPeriodShape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    
+    if (selectedTime != null) {
+      ref.read(settingsProvider.notifier).setTravelReminderTime(
+        selectedTime.hour,
+        selectedTime.minute,
+      );
+    }
   }
 
   Widget _buildBackgroundTrackingSection(BuildContext context) {
@@ -360,7 +439,7 @@ class SettingsScreen extends ConsumerWidget {
             color: AppTheme.primary.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: const Icon(
+          child: Icon(
             Icons.my_location_rounded,
             color: AppTheme.primary,
             size: 22,
@@ -396,7 +475,7 @@ class SettingsScreen extends ConsumerWidget {
                 color: AppTheme.primary.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.file_download_rounded,
                 color: AppTheme.primary,
                 size: 22,
@@ -415,7 +494,7 @@ class SettingsScreen extends ConsumerWidget {
                 color: AppTheme.warning.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.settings_backup_restore_rounded,
                 color: AppTheme.warning,
                 size: 22,
@@ -434,7 +513,7 @@ class SettingsScreen extends ConsumerWidget {
                 color: AppTheme.error.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.delete_forever_rounded,
                 color: AppTheme.error,
                 size: 22,
@@ -472,7 +551,7 @@ class SettingsScreen extends ConsumerWidget {
                 ),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.public_rounded,
                 color: AppTheme.primary,
                 size: 22,
@@ -486,7 +565,7 @@ class SettingsScreen extends ConsumerWidget {
                 color: AppTheme.surfaceLight,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Text(
+              child: Text(
                 'Flutter',
                 style: TextStyle(
                   color: AppTheme.textMuted,
@@ -691,7 +770,7 @@ class SettingsScreen extends ConsumerWidget {
                 color: AppTheme.error.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.warning_rounded,
                 color: AppTheme.error,
                 size: 20,

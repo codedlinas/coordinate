@@ -117,13 +117,13 @@ class CountryDetailScreen extends ConsumerWidget {
                                     Container(
                                       width: 6,
                                       height: 6,
-                                      decoration: const BoxDecoration(
+                                      decoration: BoxDecoration(
                                         color: AppTheme.background,
                                         shape: BoxShape.circle,
                                       ),
                                     ),
                                     const SizedBox(width: 6),
-                                    const Text(
+                                    Text(
                                       'NOW',
                                       style: TextStyle(
                                         color: AppTheme.background,

@@ -4,6 +4,7 @@ import '../core/logging/app_logger.dart';
 import '../data/models/models.dart';
 import '../data/repositories/repositories.dart';
 import 'location_service.dart';
+import 'notification_service.dart';
 
 class TrackingService extends ChangeNotifier {
   final LocationService _locationService;
@@ -106,12 +107,12 @@ class TrackingService extends ChangeNotifier {
       if (currentVisit == null) {
         // No current visit - start a new one
         AppLogger.tracking('Starting new visit for ${locationInfo.countryName}');
-        await _startNewVisit(locationInfo);
+        await _startNewVisit(locationInfo, isCountryChange: false);
       } else if (currentVisit.countryCode != locationInfo.countryCode) {
         // Country changed - end current and start new
         AppLogger.tracking('Country changed from ${currentVisit.countryName} to ${locationInfo.countryName}');
         await _endCurrentVisit();
-        await _startNewVisit(locationInfo);
+        await _startNewVisit(locationInfo, isCountryChange: true);
       } else {
         AppLogger.tracking('Still in ${currentVisit.countryName}');
       }
@@ -121,7 +122,7 @@ class TrackingService extends ChangeNotifier {
     }
   }
 
-  Future<void> _startNewVisit(LocationInfo locationInfo) async {
+  Future<void> _startNewVisit(LocationInfo locationInfo, {bool isCountryChange = false}) async {
     final now = DateTime.now();
     final id = '${locationInfo.countryCode}_${now.millisecondsSinceEpoch}';
 
@@ -139,6 +140,18 @@ class TrackingService extends ChangeNotifier {
     await _visitsRepository.addVisit(visit);
     _currentVisit = visit;
     AppLogger.tracking('Created new visit for ${visit.countryName} (ID: ${visit.id})');
+    
+    // Show country change notification if enabled
+    if (isCountryChange) {
+      final settings = _settingsRepository.getSettings();
+      if (settings.notificationsEnabled && settings.countryChangeNotifications) {
+        await NotificationService().showCountryChangeNotification(
+          countryName: locationInfo.countryName,
+          countryCode: locationInfo.countryCode,
+        );
+      }
+    }
+    
     notifyListeners();
   }
 
