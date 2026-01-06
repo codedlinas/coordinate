@@ -19,6 +19,22 @@ A travel tracking app that automatically records your country visits and tracks 
 - **Auto-refresh** - Time-based displays update automatically without manual refresh
 - **Compact duration display** - Shows time as "2d 5h" format
 
+### 🎨 10 Color Themes
+- **Dynamic theme switching** via palette picker icon in the app bar
+- 10 curated color palettes:
+  - Midnight Aurora (default dark)
+  - Ocean Depths (deep blues)
+  - Forest Canopy (nature greens)
+  - Sunset Ember (warm oranges)
+  - Arctic Frost (cool light theme)
+  - Neon Cyberpunk (vibrant pinks/cyans)
+  - Desert Dusk (sandy earth tones)
+  - Lavender Dreams (soft purples)
+  - Monochrome (clean grayscale)
+  - Coffee House (warm browns)
+- Theme preference persisted across app restarts
+- Automatic system UI color adaptation
+
 ### ✈️ Trips Timeline
 - Chronological list of all your trips (newest first)
 - Shows country flag, name, arrival/departure dates, and total days
@@ -31,7 +47,16 @@ A travel tracking app that automatically records your country visits and tracks 
 - All times stored in UTC internally
 - Changes automatically update dashboard statistics
 
-### 🔄 Background Tracking (Android)
+### 🔔 Notifications
+- **Country Change Alerts** - "Welcome to Germany! 🇩🇪" with flag emoji when entering a new country
+- **Travel Reminders** - Scheduled daily notifications ("Traveling today? ✈️")
+- Configurable reminder time via time picker
+- Master toggle to enable/disable all notifications
+- Individual toggles for each notification type
+
+### 🔄 Background Tracking
+
+#### Android (WorkManager)
 - Continues tracking even when app is closed
 - Uses Android WorkManager for periodic location checks (15-min minimum)
 - **Border debounce logic** - Requires 2 consecutive checks with the same new country OR 15 minutes of persistence before committing a country change
@@ -40,37 +65,43 @@ A travel tracking app that automatically records your country visits and tracks 
 - Country-change detection only (no raw GPS route recording)
 - Privacy-focused: only stores country-level data
 
+#### iOS (Significant Location Change)
+- **Significant Location Change API** - Detects movement of ~500m even when app is terminated
+- Wakes app in background to check for border crossings
+- Requires "Always Allow" location permission for best results
+- MethodChannel communication between native iOS and Flutter
+- Automatic location check when app resumes from background
+- Battery-efficient: iOS controls update frequency
+
 ### ⚡ High Reliability Mode (Android)
 - Optional foreground service for more consistent background tracking
 - Visible notification while active (required by Android)
 - Better for users who need reliable tracking despite battery optimizations
 - Toggle available in Tracking Health screen
 
-### 📱 iOS Strategy
-- **Foreground-focused tracking** - Location checks when app is open or resumed
-- App lifecycle integration - Automatic location check when returning to app
-- Clear onboarding messaging about iOS background limitations
-- Manual check available anytime
-
 ### 🩺 Tracking Health Screen
 - View current permission status (Always / When In Use / Denied)
 - Toggle background tracking on/off
 - See last background update time
 - Force manual location check
+- **iOS Significant Location Change status**
 - **Developer Diagnostics** (debug mode):
   - Pending country change status
   - Confirmation count and timing
   - Background task lock status
   - Last geocode coordinates and source
-- **Platform-specific warnings**:
-  - Android: Battery optimization guidance
-  - iOS: Foreground-only tracking explanation
-- OS limitations info for Android and iOS
+- **Platform-specific guidance**:
+  - Android: Battery optimization tips
+  - iOS: "Always Allow" permission explanation
 
 ### ⚙️ Settings
 - **Location Accuracy** - Battery Saver / Balanced / High Precision
 - **Tracking Interval** - 5m / 15m / 30m / 1h / 2h
-- **Notifications** - Country change alerts, weekly digest
+- **Notifications**:
+  - Master toggle for all notifications
+  - Country change alerts
+  - Weekly digest
+  - Travel reminders with time picker
 - **Data Management** - Export (JSON/CSV), reset settings, clear all data
 
 ### 📤 Data Export
@@ -90,33 +121,46 @@ A travel tracking app that automatically records your country visits and tracks 
 - **State Management**: Riverpod
 - **Local Storage**: Hive (with code generation)
 - **Location**: Geolocator + Geocoding
-- **Background Tasks**: WorkManager (Android), App Lifecycle (iOS)
-- **Foreground Service**: flutter_foreground_task (Android)
-- **UI**: Material Design 3 with custom dark theme
+- **Background Tasks**: 
+  - Android: WorkManager + optional Foreground Service
+  - iOS: Significant Location Change (CLLocationManager)
+- **Notifications**: flutter_local_notifications + timezone
+- **UI**: Material Design 3 with 10 dynamic color themes
 
 ## Project Structure
 
 ```
 lib/
 ├── core/
-│   └── storage/          # Hive initialization
+│   ├── logging/              # App logging utilities
+│   └── storage/              # Hive initialization
 ├── data/
-│   ├── models/           # CountryVisit, Trip, AppSettings, VisitSyncDto
-│   └── repositories/     # Data access layer
+│   ├── models/               # CountryVisit, Trip, AppSettings, VisitSyncDto
+│   └── repositories/         # Data access layer
 ├── services/
 │   ├── location_service.dart              # GPS + geocoding
 │   ├── background_location_service.dart   # Background tracking with debounce & lock
 │   ├── foreground_location_service.dart   # Android foreground service
 │   ├── tracking_service.dart              # Foreground tracking
+│   ├── notification_service.dart          # Local notifications (country change, reminders)
 │   ├── time_ticker_service.dart           # Periodic UI refresh for time-based displays
 │   └── export_service.dart                # JSON/CSV export
 ├── state/
 │   ├── providers.dart         # Riverpod providers
-│   └── tracking_provider.dart # Tracking state
+│   ├── tracking_provider.dart # Tracking state
+│   └── theme_provider.dart    # Theme/palette state management
 └── ui/
     ├── screens/          # Home, Timeline, Settings, TrackingHealth, etc.
-    ├── theme/            # Dark theme configuration
-    └── widgets/          # Reusable UI components
+    ├── theme/
+    │   ├── app_theme.dart       # Theme configuration
+    │   └── theme_palette.dart   # 10 color palette definitions
+    └── widgets/
+        ├── palette_picker.dart  # Theme selector widget
+        └── ...                  # Other reusable UI components
+
+ios/
+└── Runner/
+    └── AppDelegate.swift    # iOS Significant Location Change + MethodChannel
 ```
 
 ## Architecture Decisions
@@ -139,22 +183,34 @@ Background tasks run in separate Dart isolates where Flutter bindings may not be
 - Initializes Hive with explicit path instead of `Hive.initFlutter()`
 - Registers adapters only if not already registered
 
-### Platform-Specific Strategies
-- **Android**: WorkManager periodic tasks + optional foreground service
-- **iOS**: Foreground-focused with app lifecycle hooks (background fetch is unreliable on iOS)
+### Platform-Specific Background Strategies
+- **Android**: WorkManager periodic tasks (15-min minimum) + optional foreground service for high reliability
+- **iOS**: Significant Location Change API (~500m movement detection) + app lifecycle hooks
 
-### Time-Based UI Auto-Refresh
-Time-relative displays like "Last 24 Hours" need to update as time passes, even without new data:
-- A `TimeTickerService` emits every 60 seconds while the app is open
-- The `timeTickerProvider` (Riverpod StreamProvider) triggers UI rebuilds
-- Dashboard watches this provider to automatically recompute time-based filters
-- Battery-friendly: only runs when app is in foreground, 60-second interval
+### iOS Native Integration
+The iOS implementation uses a MethodChannel for communication:
+- `AppDelegate.swift` implements `CLLocationManagerDelegate`
+- Starts/stops monitoring via Flutter method calls
+- Sends location updates to Flutter when significant movement detected
+- Handles app launch from location events (wakes terminated app)
+
+### Dynamic Theming
+- 10 curated palettes defined in `theme_palette.dart`
+- `ThemeProvider` manages state with Hive persistence
+- `AppTheme` dynamically applies current palette colors
+- System UI (status bar, nav bar) adapts to theme brightness
+
+### Hive Migration Handling
+When adding new fields to `AppSettings`:
+- The generated adapter (`app_settings.g.dart`) is manually modified
+- Null-safe defaults prevent crashes when reading old data
+- Migration note in `app_settings.dart` documents the required fix
 
 ## Requirements
 
 - Flutter SDK ^3.8.1
 - Android: compileSdk 36, minSdk as per Flutter defaults
-- iOS: Deployment target as per Flutter defaults
+- iOS: Deployment target 14.0+
 
 ## Permissions
 
@@ -170,16 +226,18 @@ Time-relative displays like "Last 24 Hours" need to update as time passes, even 
 
 ### iOS
 - Location When In Use
-- Location Always (for background tracking)
+- Location Always (for Significant Location Change)
 - Background Modes: location, fetch
 - Motion Usage (for battery optimization)
+- Notification permission (for country change alerts)
 
 ## Getting Started
 
 1. Clone the repository
 2. Run `flutter pub get`
-3. Run `flutter pub run build_runner build` (for Hive code generation)
-4. Run `flutter run` on your device
+3. Run `dart run build_runner build` (for Hive code generation)
+4. For iOS: `cd ios && pod install && cd ..`
+5. Run `flutter run` on your device
 
 ## Build Notes
 
@@ -190,13 +248,29 @@ If your project is on a different drive (e.g., D:) than your Pub cache (C:), you
 kotlin.incremental=false
 ```
 
+### iOS Development
+- Open `ios/Runner.xcworkspace` in Xcode (not `.xcodeproj`)
+- Select your device and click Run
+- For device testing without paid Apple Developer account:
+  - Trust the developer certificate on device: Settings → General → VPN & Device Management
+  - Certificate expires after 7 days
+
+### Hive Migration Warning
+If you regenerate Hive adapters with `build_runner`, you MUST re-apply null-safe fixes in `app_settings.g.dart`:
+```dart
+travelRemindersEnabled: (fields[7] as bool?) ?? false,
+travelReminderHour: (fields[8] as int?) ?? 8,
+travelReminderMinute: (fields[9] as int?) ?? 0,
+```
+
 ## Notes
 
 - All timestamps are stored in UTC internally
 - Background tracking has OS limitations (see Tracking Health screen)
 - Some Android manufacturers may kill background tasks aggressively
-- iOS background fetch frequency is controlled by the OS and is unreliable
-- High Reliability Mode uses more battery but provides consistent tracking
+- iOS Significant Location Change requires "Always Allow" permission
+- High Reliability Mode (Android) uses more battery but provides consistent tracking
+- Theme preference is saved locally and persists across app restarts
 
 ## Future: Supabase Sync
 
@@ -206,6 +280,22 @@ The data model is prepared for cloud synchronization:
 - `deviceId` - Device identifier for multi-device sync
 - `isManualEdit` - Flag for conflict resolution (manual edits win)
 - `VisitSyncDto` - Privacy-focused DTO excluding GPS coordinates
+
+## Changelog
+
+### v1.1.0 (Current)
+- ✨ iOS Significant Location Change for background border detection
+- ✨ Country change notifications with flag emoji
+- ✨ Travel reminder notifications with scheduling
+- ✨ 10 dynamic color themes with palette picker
+- 🔧 Hive migration handling for new settings fields
+- 🔧 iOS 14+ compatibility fixes
+
+### v1.0.0
+- Initial release with core tracking functionality
+- Android WorkManager background tracking
+- iOS foreground-only tracking
+- Border flip debounce logic
 
 ## License
 
