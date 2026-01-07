@@ -4,4 +4,6 @@ export 'country_detail_screen.dart';
 export 'onboarding_screen.dart';
 export 'timeline_screen.dart';
 export 'tracking_health_screen.dart';
+export 'auth_screen.dart';
+export 'profile_screen.dart';
 

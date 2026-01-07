@@ -1,16 +1,49 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../data/models/models.dart';
 import '../data/models/trip.dart';
 import '../data/repositories/repositories.dart';
+import '../services/auth_service.dart';
 import '../services/background_location_service.dart';
 import '../services/foreground_location_service.dart';
 import '../services/location_service.dart';
 import '../services/notification_service.dart';
+import '../services/sync_service.dart';
 import '../services/time_ticker_service.dart';
 
 // Repository providers
 final visitsRepositoryProvider = Provider((ref) => VisitsRepository());
 final settingsRepositoryProvider = Provider((ref) => SettingsRepository());
+
+// Auth service provider (singleton)
+final authServiceProvider = Provider((ref) => AuthService.instance);
+
+// Auth state provider - stream of authentication state changes
+final authStateProvider = StreamProvider<AuthState>((ref) {
+  return AuthService.instance.authStateChanges;
+});
+
+// Current user provider
+final currentUserProvider = Provider<User?>((ref) {
+  final authState = ref.watch(authStateProvider);
+  return authState.whenOrNull(data: (state) => state.session?.user);
+});
+
+// Is authenticated provider
+final isAuthenticatedProvider = Provider<bool>((ref) {
+  final user = ref.watch(currentUserProvider);
+  return user != null;
+});
+
+// Sync service provider
+final syncServiceProvider = Provider<SyncService>((ref) {
+  final visitsRepo = ref.watch(visitsRepositoryProvider);
+  final authService = ref.watch(authServiceProvider);
+  return SyncService(visitsRepo, authService);
+});
+
+// Sync status provider
+final syncStatusProvider = StateProvider<SyncStatus>((ref) => SyncStatus.idle);
 
 // Location service provider - singleton instance shared across the app
 final locationServiceProvider = Provider((ref) => LocationService());

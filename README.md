@@ -19,21 +19,28 @@ A travel tracking app that automatically records your country visits and tracks 
 - **Auto-refresh** - Time-based displays update automatically without manual refresh
 - **Compact duration display** - Shows time as "2d 5h" format
 
-### 🎨 10 Color Themes
+### 🎨 10 Distinct UI Design Themes
 - **Dynamic theme switching** via palette picker icon in the app bar
-- 10 curated color palettes:
-  - Midnight Aurora (default dark)
-  - Ocean Depths (deep blues)
-  - Forest Canopy (nature greens)
-  - Sunset Ember (warm oranges)
-  - Arctic Frost (cool light theme)
-  - Neon Cyberpunk (vibrant pinks/cyans)
-  - Desert Dusk (sandy earth tones)
-  - Lavender Dreams (soft purples)
-  - Monochrome (clean grayscale)
-  - Coffee House (warm browns)
+- Each theme is a complete design system with unique:
+  - Typography (Google Fonts - Orbitron, Playfair Display, JetBrains Mono, etc.)
+  - Border radii (sharp 0px to very rounded 24px)
+  - Shadows (none, subtle, pronounced, colored glows)
+  - Effects (glassmorphism blur, neon borders)
+  - Spacing density (compact to spacious)
+- **10 curated design themes:**
+  - **Obsidian Glass** - Dark glassmorphism with frosted cards and purple glow
+  - **Neon Pulse** - Cyberpunk aesthetic with glowing neon borders
+  - **Midnight Luxe** - Elegant dark with gold accents and serif typography
+  - **Terminal** - Retro hacker style with phosphor green monospace
+  - **Carbon** - Technical dark with professional blue accents
+  - **Arctic Mist** - Light glassmorphism with floating airy cards
+  - **Paper Craft** - Material design with pronounced tactile shadows
+  - **Minimal** - Ultra-clean white with maximum whitespace
+  - **Sunrise** - Warm organic tones with terracotta accents
+  - **Neo Brutal** - Bold statement design with sharp corners and thick borders
 - Theme preference persisted across app restarts
 - Automatic system UI color adaptation
+- `ThemedCard` widget for automatic glassmorphism/effects per theme
 
 ### ✈️ Trips Timeline
 - Chronological list of all your trips (newest first)
@@ -125,7 +132,8 @@ A travel tracking app that automatically records your country visits and tracks 
   - Android: WorkManager + optional Foreground Service
   - iOS: Significant Location Change (CLLocationManager)
 - **Notifications**: flutter_local_notifications + timezone
-- **UI**: Material Design 3 with 10 dynamic color themes
+- **UI**: Material Design 3 with 10 dynamic design themes
+- **Typography**: Google Fonts (Orbitron, Playfair Display, JetBrains Mono, etc.)
 
 ## Project Structure
 
@@ -150,12 +158,13 @@ lib/
 │   ├── tracking_provider.dart # Tracking state
 │   └── theme_provider.dart    # Theme/palette state management
 └── ui/
-    ├── screens/          # Home, Timeline, Settings, TrackingHealth, etc.
+    ├── screens/          # Home, Timeline, Settings, TrackingHealth, Auth, Profile, etc.
     ├── theme/
-    │   ├── app_theme.dart       # Theme configuration
-    │   └── theme_palette.dart   # 10 color palette definitions
+    │   ├── app_theme.dart       # Theme configuration with dynamic ThemeData builder
+    │   └── theme_palette.dart   # 10 complete design system definitions
     └── widgets/
-        ├── palette_picker.dart  # Theme selector widget
+        ├── palette_picker.dart  # Theme selector with rich previews
+        ├── themed_card.dart     # Card widget with glassmorphism support
         └── ...                  # Other reusable UI components
 
 ios/
@@ -194,10 +203,17 @@ The iOS implementation uses a MethodChannel for communication:
 - Sends location updates to Flutter when significant movement detected
 - Handles app launch from location events (wakes terminated app)
 
-### Dynamic Theming
-- 10 curated palettes defined in `theme_palette.dart`
+### Dynamic Theming & Design System
+- 10 complete design systems defined in `theme_palette.dart`, each with:
+  - Color palette (primary, secondary, surface, text colors)
+  - Typography (font families for display, body, and code)
+  - Shapes (card, button, dialog border radii)
+  - Shadows (elevation, shadow colors)
+  - Effects (glassmorphism blur strength, overlay colors)
 - `ThemeProvider` manages state with Hive persistence
-- `AppTheme` dynamically applies current palette colors
+- `AppTheme.buildTheme()` dynamically constructs `ThemeData` from current palette
+- `ThemedCard` widget applies glassmorphism effects when available
+- Google Fonts integration for unique typography per theme
 - System UI (status bar, nav bar) adapts to theme brightness
 
 ### Hive Migration Handling
@@ -283,7 +299,18 @@ The data model is prepared for cloud synchronization:
 
 ## Changelog
 
-### v1.1.0 (Current)
+### v1.2.0 (Current)
+- ✨ **10 Distinct UI Design Themes** - Complete design systems, not just colors
+  - Unique typography per theme (Google Fonts integration)
+  - Glassmorphism effects (Obsidian Glass, Arctic Mist themes)
+  - Neon glow effects (Neon Pulse theme)
+  - Variable border radii and shadow styles
+- ✨ `ThemedCard` widget with automatic glassmorphism support
+- ✨ Enhanced palette picker with rich theme previews
+- 🔧 Dynamic `ThemeData` builder for comprehensive theme application
+- 🔧 Refactored `AppTheme` for full design system integration
+
+### v1.1.0
 - ✨ iOS Significant Location Change for background border detection
 - ✨ Country change notifications with flag emoji
 - ✨ Travel reminder notifications with scheduling

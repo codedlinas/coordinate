@@ -47,8 +47,18 @@ dependencies:
   # Date formatting
   intl: ^0.20.2
   
+  # Typography
+  google_fonts: ^6.2.1
+  
   # File sharing
   share_plus: ^10.1.4
+  
+  # Supabase Backend & Auth
+  supabase_flutter: ^2.8.0
+  google_sign_in: ^6.2.2
+  
+  # Device identification for sync
+  device_info_plus: ^11.2.0
 
 dev_dependencies:
   flutter_test:

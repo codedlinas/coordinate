@@ -1,13 +1,17 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:country_flags/country_flags.dart';
 import '../../data/models/models.dart';
+import '../../services/sync_service.dart';
 import '../../state/providers.dart';
 import '../../state/tracking_provider.dart';
 import '../../services/tracking_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/palette_picker.dart';
+import '../widgets/themed_card.dart';
+import 'profile_screen.dart';
 import 'settings_screen.dart';
 import 'timeline_screen.dart';
 
@@ -103,6 +107,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         backgroundColor: AppTheme.background,
         elevation: 0,
         actions: [
+          // Sync status indicator
+          _SyncStatusButton(),
           // Palette toggle button
           IconButton(
             icon: const Icon(Icons.palette_outlined),
@@ -418,18 +424,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     required int index,
     required bool isOngoing,
   }) {
-    return Container(
+    final palette = AppTheme.currentPalette;
+    
+    return ThemedCard(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isOngoing 
-            ? AppTheme.primary.withValues(alpha: 0.08)
-            : AppTheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isOngoing ? AppTheme.primary.withValues(alpha: 0.3) : AppTheme.cardBorder,
-        ),
-      ),
+      isHighlighted: isOngoing,
+      highlightColor: AppTheme.primary,
       child: Row(
         children: [
           // Index Circle
@@ -446,13 +446,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 style: TextStyle(
                   color: AppTheme.warning,
                   fontWeight: FontWeight.bold,
-                  fontSize: 16,
+                  fontSize: 16 * palette.fontSizeMultiplier,
                 ),
               ),
             ),
           ),
 
-          const SizedBox(width: 14),
+          SizedBox(width: 14 * palette.spacingMultiplier),
 
           // Flag
           CountryFlag.fromCountryCode(
@@ -461,7 +461,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             height: 26,
           ),
 
-          const SizedBox(width: 14),
+          SizedBox(width: 14 * palette.spacingMultiplier),
 
           // Country Name
           Expanded(
@@ -474,7 +474,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       child: Text(
                         countryName,
                         style: TextStyle(
-                          fontSize: 15,
+                          fontSize: 15 * palette.fontSizeMultiplier,
                           fontWeight: FontWeight.w600,
                           color: AppTheme.textPrimary,
                         ),
@@ -483,21 +483,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                     if (isOngoing) ...[
                       const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppTheme.primary,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          'NOW',
-                          style: TextStyle(
-                            color: AppTheme.background,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
+                      ThemedChip(
+                        label: 'NOW',
+                        color: AppTheme.primary,
                       ),
                     ],
                   ],
@@ -508,20 +496,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   height: 4,
                   decoration: BoxDecoration(
                     color: isOngoing ? AppTheme.primary : AppTheme.warning,
-                    borderRadius: BorderRadius.circular(2),
+                    borderRadius: BorderRadius.circular(palette.chipRadius / 2),
                   ),
                 ),
               ],
             ),
           ),
 
-          const SizedBox(width: 14),
+          SizedBox(width: 14 * palette.spacingMultiplier),
 
           // Compact Duration
           Text(
             _formatCompactDuration(duration),
             style: TextStyle(
-              fontSize: 15,
+              fontSize: 15 * palette.fontSizeMultiplier,
               fontWeight: FontWeight.bold,
               color: isOngoing ? AppTheme.primary : AppTheme.textPrimary,
             ),
@@ -760,5 +748,100 @@ class _TrackingCountryDisplayState extends ConsumerState<_TrackingCountryDisplay
       );
     }
     return const SizedBox.shrink();
+  }
+}
+
+/// Sync status button for the app bar
+class _SyncStatusButton extends ConsumerStatefulWidget {
+  @override
+  ConsumerState<_SyncStatusButton> createState() => _SyncStatusButtonState();
+}
+
+class _SyncStatusButtonState extends ConsumerState<_SyncStatusButton> {
+  bool _isSyncing = false;
+
+  Future<void> _handleSync() async {
+    final isAuthenticated = ref.read(isAuthenticatedProvider);
+    
+    if (!isAuthenticated) {
+      // Not logged in - go to profile screen
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ProfileScreen()),
+      );
+      return;
+    }
+    
+    // Trigger sync
+    setState(() => _isSyncing = true);
+    HapticFeedback.lightImpact();
+    
+    try {
+      final syncService = ref.read(syncServiceProvider);
+      await syncService.sync();
+      
+      if (mounted) {
+        ref.read(visitsProvider.notifier).refresh();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Sync completed'),
+            backgroundColor: AppTheme.success,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Sync failed: $e'),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSyncing = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isAuthenticated = ref.watch(isAuthenticatedProvider);
+    final syncStatus = ref.watch(syncStatusProvider);
+    
+    // Determine icon and color based on state
+    IconData icon;
+    Color? color;
+    
+    if (_isSyncing || syncStatus == SyncStatus.syncing) {
+      icon = Icons.sync;
+      color = AppTheme.primary;
+    } else if (!isAuthenticated) {
+      icon = Icons.cloud_off_outlined;
+      color = AppTheme.textMuted;
+    } else if (syncStatus == SyncStatus.error) {
+      icon = Icons.cloud_off;
+      color = AppTheme.error;
+    } else {
+      icon = Icons.cloud_done_outlined;
+      color = AppTheme.success;
+    }
+    
+    return IconButton(
+      icon: _isSyncing
+          ? SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation(AppTheme.primary),
+              ),
+            )
+          : Icon(icon, color: color),
+      tooltip: isAuthenticated ? 'Sync' : 'Sign in to sync',
+      onPressed: _isSyncing ? null : _handleSync,
+    );
   }
 }

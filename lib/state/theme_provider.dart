@@ -68,3 +68,4 @@ final allPalettesProvider = Provider<List<ThemePalette>>((ref) {
   return ThemePalette.palettes;
 });
 
+

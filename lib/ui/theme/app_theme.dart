@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'theme_palette.dart';
 
 class AppTheme {
-  // Current palette - defaults to Deep Space, updated by the provider
-  static ThemePalette _currentPalette = ThemePalette.deepSpace;
+  // Current palette - defaults to Obsidian Glass, updated by the provider
+  static ThemePalette _currentPalette = ThemePalette.obsidianGlass;
 
   /// Set the current palette (called when theme changes)
   static void setCurrentPalette(ThemePalette palette) {
@@ -15,41 +16,72 @@ class AppTheme {
 
   // ============================================================
   // Dynamic color getters - these return colors from the current palette
-  // All existing code continues to use AppTheme.primary, etc.
   // ============================================================
 
-  // Background colors
   static Color get background => _currentPalette.background;
   static Color get surface => _currentPalette.surface;
   static Color get surfaceLight => _currentPalette.surfaceLight;
   static Color get surfaceLighter => _currentPalette.surfaceLighter;
-
-  // Primary/Accent colors
   static Color get primary => _currentPalette.primary;
   static Color get primaryDark => _currentPalette.primaryDark;
   static Color get secondary => _currentPalette.secondary;
   static Color get accent => _currentPalette.accent;
-
-  // Text colors
   static Color get textPrimary => _currentPalette.textPrimary;
   static Color get textSecondary => _currentPalette.textSecondary;
   static Color get textMuted => _currentPalette.textMuted;
-
-  // Semantic colors
   static Color get success => _currentPalette.success;
   static Color get warning => _currentPalette.warning;
   static Color get error => _currentPalette.error;
-
-  // UI element colors
   static Color get divider => _currentPalette.divider;
   static Color get cardBorder => _currentPalette.cardBorder;
+
+  // ============================================================
+  // Dynamic shape getters
+  // ============================================================
+
+  static double get cardRadius => _currentPalette.cardRadius;
+  static double get buttonRadius => _currentPalette.buttonRadius;
+  static double get dialogRadius => _currentPalette.dialogRadius;
+
+  // ============================================================
+  // Dynamic effect getters
+  // ============================================================
+
+  static bool get useGlassmorphism => _currentPalette.useGlassmorphism;
+  static double get glassBlur => _currentPalette.glassBlur;
+  static double get glassOpacity => _currentPalette.glassOpacity;
+  static List<BoxShadow> get cardShadow => _currentPalette.cardShadow;
+  static EdgeInsets get cardPadding => _currentPalette.cardPadding;
+  static double get borderWidth => _currentPalette.borderWidth;
+  static bool get showCardBorders => _currentPalette.showCardBorders;
 
   /// Build a ThemeData from the current palette
   static ThemeData get darkTheme => buildTheme(_currentPalette);
 
+  /// Get the appropriate TextStyle with Google Fonts
+  static TextStyle _getFont(ThemePalette palette, {bool isHeading = false}) {
+    final fontFamily = isHeading 
+        ? (palette.headingFontFamily ?? palette.fontFamily)
+        : palette.fontFamily;
+    
+    try {
+      return GoogleFonts.getFont(fontFamily);
+    } catch (e) {
+      // Fallback to system font if Google Font not available
+      return const TextStyle();
+    }
+  }
+
   /// Build a ThemeData from a specific palette
   static ThemeData buildTheme(ThemePalette palette) {
     final isDark = palette.brightness == Brightness.dark;
+    
+    // Get base text styles from Google Fonts
+    final baseTextStyle = _getFont(palette);
+    final headingTextStyle = _getFont(palette, isHeading: true);
+
+    // Calculate scaled font sizes
+    final scale = palette.fontSizeMultiplier;
 
     return ThemeData(
       useMaterial3: true,
@@ -64,31 +96,35 @@ class AppTheme {
         onPrimary: isDark ? palette.background : Colors.white,
         onSecondary: palette.textPrimary,
         onSurface: palette.textPrimary,
-        onError: palette.textPrimary,
+        onError: Colors.white,
       ),
       appBarTheme: AppBarTheme(
         backgroundColor: palette.background,
         foregroundColor: palette.textPrimary,
         elevation: 0,
         centerTitle: false,
-        titleTextStyle: TextStyle(
-          fontFamily: 'SpaceMono',
-          fontSize: 20,
-          fontWeight: FontWeight.w700,
+        titleTextStyle: headingTextStyle.copyWith(
+          fontSize: 20 * scale,
+          fontWeight: palette.headingWeight,
           color: palette.textPrimary,
-          letterSpacing: -0.5,
+          letterSpacing: palette.letterSpacingHeading,
         ),
       ),
       cardTheme: CardThemeData(
         color: palette.surface,
-        elevation: 0,
+        elevation: palette.cardElevation,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: palette.cardBorder, width: 1),
+          borderRadius: BorderRadius.circular(palette.cardRadius),
+          side: palette.showCardBorders 
+              ? BorderSide(color: palette.cardBorder, width: palette.borderWidth)
+              : BorderSide.none,
         ),
       ),
       listTileTheme: ListTileThemeData(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: 20 * palette.spacingMultiplier, 
+          vertical: 4 * palette.spacingMultiplier,
+        ),
         iconColor: palette.textSecondary,
         textColor: palette.textPrimary,
       ),
@@ -118,38 +154,48 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: palette.primary,
           foregroundColor: isDark ? palette.background : Colors.white,
-          elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+          elevation: palette.cardElevation,
+          padding: EdgeInsets.symmetric(
+            horizontal: 24 * palette.spacingMultiplier, 
+            vertical: 16 * palette.spacingMultiplier,
           ),
-          textStyle: const TextStyle(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(palette.buttonRadius),
+          ),
+          textStyle: baseTextStyle.copyWith(
             fontWeight: FontWeight.w600,
-            fontSize: 16,
+            fontSize: 16 * scale,
+            letterSpacing: palette.letterSpacingBody,
           ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: palette.primary,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+          padding: EdgeInsets.symmetric(
+            horizontal: 24 * palette.spacingMultiplier, 
+            vertical: 16 * palette.spacingMultiplier,
           ),
-          side: BorderSide(color: palette.primary, width: 1.5),
-          textStyle: const TextStyle(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(palette.buttonRadius),
+          ),
+          side: BorderSide(color: palette.primary, width: palette.borderWidth),
+          textStyle: baseTextStyle.copyWith(
             fontWeight: FontWeight.w600,
-            fontSize: 16,
+            fontSize: 16 * scale,
           ),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: palette.primary,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          textStyle: const TextStyle(
+          padding: EdgeInsets.symmetric(
+            horizontal: 16 * palette.spacingMultiplier, 
+            vertical: 12 * palette.spacingMultiplier,
+          ),
+          textStyle: baseTextStyle.copyWith(
             fontWeight: FontWeight.w600,
-            fontSize: 14,
+            fontSize: 14 * scale,
           ),
         ),
       ),
@@ -166,89 +212,131 @@ class AppTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: palette.surfaceLight,
-        contentTextStyle: TextStyle(color: palette.textPrimary),
+        contentTextStyle: baseTextStyle.copyWith(color: palette.textPrimary),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(palette.cardRadius),
         ),
         behavior: SnackBarBehavior.floating,
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: palette.surface,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(palette.dialogRadius),
         ),
-        titleTextStyle: TextStyle(
+        titleTextStyle: headingTextStyle.copyWith(
           color: palette.textPrimary,
-          fontSize: 20,
-          fontWeight: FontWeight.w700,
+          fontSize: 20 * scale,
+          fontWeight: palette.headingWeight,
         ),
       ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: palette.surface,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(palette.dialogRadius),
+          ),
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: palette.surfaceLight,
+        selectedColor: palette.primary,
+        labelStyle: baseTextStyle.copyWith(
+          fontSize: 14 * scale,
+          color: palette.textSecondary,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(palette.chipRadius),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: palette.surfaceLight,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(palette.inputRadius),
+          borderSide: BorderSide(color: palette.cardBorder),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(palette.inputRadius),
+          borderSide: BorderSide(color: palette.cardBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(palette.inputRadius),
+          borderSide: BorderSide(color: palette.primary, width: 2),
+        ),
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: 16 * palette.spacingMultiplier,
+          vertical: 14 * palette.spacingMultiplier,
         ),
       ),
       textTheme: TextTheme(
-        displayLarge: TextStyle(
-          fontSize: 32,
+        displayLarge: headingTextStyle.copyWith(
+          fontSize: 32 * scale,
           fontWeight: FontWeight.w800,
           color: palette.textPrimary,
-          letterSpacing: -1,
+          letterSpacing: palette.letterSpacingHeading,
         ),
-        displayMedium: TextStyle(
-          fontSize: 28,
-          fontWeight: FontWeight.w700,
+        displayMedium: headingTextStyle.copyWith(
+          fontSize: 28 * scale,
+          fontWeight: palette.headingWeight,
           color: palette.textPrimary,
-          letterSpacing: -0.5,
+          letterSpacing: palette.letterSpacingHeading,
         ),
-        headlineLarge: TextStyle(
-          fontSize: 24,
-          fontWeight: FontWeight.w700,
+        headlineLarge: headingTextStyle.copyWith(
+          fontSize: 24 * scale,
+          fontWeight: palette.headingWeight,
           color: palette.textPrimary,
+          letterSpacing: palette.letterSpacingHeading,
         ),
-        headlineMedium: TextStyle(
-          fontSize: 20,
+        headlineMedium: headingTextStyle.copyWith(
+          fontSize: 20 * scale,
           fontWeight: FontWeight.w600,
           color: palette.textPrimary,
+          letterSpacing: palette.letterSpacingHeading,
         ),
-        titleLarge: TextStyle(
-          fontSize: 18,
+        titleLarge: baseTextStyle.copyWith(
+          fontSize: 18 * scale,
           fontWeight: FontWeight.w600,
           color: palette.textPrimary,
+          letterSpacing: palette.letterSpacingBody,
         ),
-        titleMedium: TextStyle(
-          fontSize: 16,
+        titleMedium: baseTextStyle.copyWith(
+          fontSize: 16 * scale,
           fontWeight: FontWeight.w600,
           color: palette.textPrimary,
+          letterSpacing: palette.letterSpacingBody,
         ),
-        bodyLarge: TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w400,
+        bodyLarge: baseTextStyle.copyWith(
+          fontSize: 16 * scale,
+          fontWeight: palette.bodyWeight,
           color: palette.textPrimary,
+          letterSpacing: palette.letterSpacingBody,
         ),
-        bodyMedium: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w400,
+        bodyMedium: baseTextStyle.copyWith(
+          fontSize: 14 * scale,
+          fontWeight: palette.bodyWeight,
           color: palette.textSecondary,
+          letterSpacing: palette.letterSpacingBody,
         ),
-        bodySmall: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w400,
+        bodySmall: baseTextStyle.copyWith(
+          fontSize: 12 * scale,
+          fontWeight: palette.bodyWeight,
           color: palette.textMuted,
+          letterSpacing: palette.letterSpacingBody,
         ),
-        labelLarge: TextStyle(
-          fontSize: 14,
+        labelLarge: baseTextStyle.copyWith(
+          fontSize: 14 * scale,
           fontWeight: FontWeight.w600,
           color: palette.textPrimary,
+          letterSpacing: palette.letterSpacingBody,
         ),
-        labelMedium: TextStyle(
-          fontSize: 12,
+        labelMedium: baseTextStyle.copyWith(
+          fontSize: 12 * scale,
           fontWeight: FontWeight.w500,
           color: palette.textSecondary,
+          letterSpacing: palette.letterSpacingBody,
         ),
-        labelSmall: TextStyle(
-          fontSize: 10,
+        labelSmall: baseTextStyle.copyWith(
+          fontSize: 10 * scale,
           fontWeight: FontWeight.w500,
           color: palette.textMuted,
           letterSpacing: 0.5,

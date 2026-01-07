@@ -5,6 +5,7 @@ import '../../services/export_service.dart';
 import '../../state/providers.dart';
 import '../theme/app_theme.dart';
 import '../widgets/widgets.dart';
+import 'profile_screen.dart';
 import 'tracking_health_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -50,6 +51,13 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: 'Track country changes when app is closed',
             ),
             _buildBackgroundTrackingSection(context),
+
+            // Account Section
+            const SectionHeader(
+              title: 'Account',
+              subtitle: 'Sync and cloud backup',
+            ),
+            _buildAccountSection(context, ref),
 
             // Data Management Section
             const SectionHeader(
@@ -452,6 +460,49 @@ class SettingsScreen extends ConsumerWidget {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const TrackingHealthScreen()),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildAccountSection(BuildContext context, WidgetRef ref) {
+    final isAuthenticated = ref.watch(isAuthenticatedProvider);
+    final user = ref.watch(currentUserProvider);
+    
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.cardBorder),
+      ),
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: isAuthenticated
+                ? AppTheme.success.withValues(alpha: 0.15)
+                : AppTheme.secondary.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            isAuthenticated ? Icons.cloud_done_rounded : Icons.cloud_off_rounded,
+            color: isAuthenticated ? AppTheme.success : AppTheme.secondary,
+            size: 22,
+          ),
+        ),
+        title: Text(isAuthenticated ? 'Account' : 'Sign In'),
+        subtitle: Text(
+          isAuthenticated
+              ? user?.email ?? 'Signed in'
+              : 'Enable cloud backup & sync',
+        ),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ProfileScreen()),
           );
         },
       ),

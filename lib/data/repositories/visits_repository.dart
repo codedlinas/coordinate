@@ -46,6 +46,11 @@ class VisitsRepository {
     return visits.isNotEmpty ? visits.first : null;
   }
 
+  /// Get a visit by its ID
+  CountryVisit? getVisitById(String id) {
+    return StorageService.visitsBox.get(id);
+  }
+
   Future<void> addVisit(CountryVisit visit) async {
     await StorageService.visitsBox.put(visit.id, visit);
     _invalidateCache();

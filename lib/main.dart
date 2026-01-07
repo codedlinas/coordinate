@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'core/config/supabase_config.dart';
 import 'core/storage/storage_service.dart';
 import 'services/foreground_location_service.dart';
 import 'services/notification_service.dart';
@@ -14,6 +16,13 @@ import 'ui/widgets/phone_wrapper.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Supabase (must be before any Supabase calls)
+  await Supabase.initialize(
+    url: SupabaseConfig.url,
+    anonKey: SupabaseConfig.anonKey,
+  );
+  debugPrint('Supabase initialized');
 
   // Initialize storage
   await StorageService.init();
