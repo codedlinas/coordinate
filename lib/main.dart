@@ -80,8 +80,13 @@ class _CoordinateAppState extends ConsumerState<CoordinateApp> with WidgetsBindi
     if (!_bgServiceInitialized) return;
     
     try {
+      // Check location on resume (especially important for iOS)
       final bgService = ref.read(backgroundLocationServiceProvider);
       await bgService.onAppResumed();
+      
+      // Sync pending visits on resume
+      final syncService = ref.read(syncServiceProvider);
+      await syncService.syncOnResume();
     } catch (e) {
       debugPrint('Error in onAppResumed: $e');
     }
@@ -116,6 +121,11 @@ class _CoordinateAppState extends ConsumerState<CoordinateApp> with WidgetsBindi
       final trackingService = ref.read(trackingServiceProvider);
       await trackingService.initialize();
       debugPrint('TrackingService initialized successfully');
+      
+      // Initialize sync service
+      final syncService = ref.read(syncServiceProvider);
+      await syncService.initialize();
+      debugPrint('SyncService initialized successfully');
     } catch (e) {
       debugPrint('Failed to initialize location services: $e');
       // Don't crash the app - background tracking is optional

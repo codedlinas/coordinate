@@ -30,13 +30,15 @@ class CountryVisitAdapter extends TypeAdapter<CountryVisit> {
       updatedAt: fields[10] as DateTime?,
       deviceId: fields[11] as String?,
       isManualEdit: fields[12] == null ? false : fields[12] as bool,
+      syncState:
+          fields[13] == null ? SyncState.pending : fields[13] as SyncState,
     );
   }
 
   @override
   void write(BinaryWriter writer, CountryVisit obj) {
     writer
-      ..writeByte(13)
+      ..writeByte(14)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -62,7 +64,9 @@ class CountryVisitAdapter extends TypeAdapter<CountryVisit> {
       ..writeByte(11)
       ..write(obj.deviceId)
       ..writeByte(12)
-      ..write(obj.isManualEdit);
+      ..write(obj.isManualEdit)
+      ..writeByte(13)
+      ..write(obj.syncState);
   }
 
   @override

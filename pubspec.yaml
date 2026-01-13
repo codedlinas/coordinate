@@ -59,6 +59,9 @@ dependencies:
   
   # Device identification for sync
   device_info_plus: ^11.2.0
+  
+  # Network connectivity monitoring
+  connectivity_plus: ^6.0.0
 
 dev_dependencies:
   flutter_test:

@@ -105,6 +105,10 @@ void _registerAdaptersIfNeeded() {
   if (!Hive.isAdapterRegistered(2)) {
     Hive.registerAdapter(AppSettingsAdapter());
   }
+  // TypeId 3: SyncState
+  if (!Hive.isAdapterRegistered(3)) {
+    Hive.registerAdapter(SyncStateAdapter());
+  }
 }
 
 /// Result of checking if a country change should be committed.
@@ -277,12 +281,20 @@ void callbackDispatcher() {
         debugPrint('BackgroundLocationService: Committing country change to ${locationInfo.countryCode}');
         
         // End current visit if exists
+        // Mark as modified so it syncs when app resumes
         if (currentVisit != null) {
-          final updated = currentVisit.copyWith(exitTime: now);
+          final updated = currentVisit.copyWith(
+            exitTime: now,
+            syncState: SyncState.modified,
+            updateTimestamp: true,
+          );
           await visitsBox.put(currentVisit.id, updated);
         }
         
         // Start new visit
+        // Note: Visit is created with SyncState.pending (default)
+        // It will be synced when app comes to foreground via syncOnResume
+        // We don't sync from background isolate as Supabase isn't initialized here
         final id = '${locationInfo.countryCode}_${now.millisecondsSinceEpoch}';
         final visit = CountryVisit(
           id: id,
@@ -293,6 +305,7 @@ void callbackDispatcher() {
           entryLongitude: locationInfo.longitude ?? 0,
           city: locationInfo.city,
           region: locationInfo.region,
+          // SyncState.pending is the default - will sync on app resume
         );
         
         await visitsBox.put(id, visit);

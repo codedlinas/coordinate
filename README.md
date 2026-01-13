@@ -1,6 +1,6 @@
-# Coordinate
+# WhereDays (Coordinate)
 
-A travel tracking app that automatically records your country visits and tracks how long you stay in each location.
+A travel tracking app that automatically records your country visits and tracks how long you stay in each location. Your travel history syncs to the cloud so it's never lost.
 
 ## Features
 
@@ -116,21 +116,33 @@ A travel tracking app that automatically records your country visits and tracks 
 - Export to CSV (for spreadsheet apps)
 - Share exported files directly
 
+### ☁️ Cloud Sync (Supabase)
+- **Automatic sync** - Visits sync to cloud immediately on country change
+- **Offline support** - Works fully offline, syncs when back online via SyncQueue
+- **App resume sync** - Pending changes sync automatically when app opens
+- **Cross-device** - Travel history restored on new device login
+- **User controls** - Toggle sync on/off, manual sync button, delete cloud data
+- **Conflict resolution** - Last-write-wins with manual edits taking priority
+- **Privacy-first** - GPS coordinates never leave device, only country-level data synced
+
 ### 🔐 Privacy by Design
-- Only country-level data stored (no GPS coordinates in permanent storage)
-- Sync-ready model with explicit exclusion of location coordinates
+- Only country-level data stored (no GPS coordinates in cloud sync)
+- Sync DTO explicitly excludes location coordinates
 - Manual edit flag for conflict resolution
-- Device ID for multi-device sync preparation
+- Device ID for multi-device deduplication
+- Compliant disclosure screen in onboarding for App Store/Play Store
 
 ## Tech Stack
 
 - **Framework**: Flutter (Dart)
 - **State Management**: Riverpod
 - **Local Storage**: Hive (with code generation)
+- **Backend**: Supabase (PostgreSQL + Auth + Row Level Security)
 - **Location**: Geolocator + Geocoding
 - **Background Tasks**: 
   - Android: WorkManager + optional Foreground Service
   - iOS: Significant Location Change (CLLocationManager)
+- **Network**: connectivity_plus (for offline detection)
 - **Notifications**: flutter_local_notifications + timezone
 - **UI**: Material Design 3 with 10 dynamic design themes
 - **Typography**: Google Fonts (Orbitron, Playfair Display, JetBrains Mono, etc.)
@@ -140,25 +152,29 @@ A travel tracking app that automatically records your country visits and tracks 
 ```
 lib/
 ├── core/
+│   ├── config/               # Supabase configuration
 │   ├── logging/              # App logging utilities
 │   └── storage/              # Hive initialization
 ├── data/
-│   ├── models/               # CountryVisit, Trip, AppSettings, VisitSyncDto
+│   ├── models/               # CountryVisit, Trip, AppSettings, SyncState, VisitSyncDto
 │   └── repositories/         # Data access layer
 ├── services/
+│   ├── auth_service.dart                  # Supabase authentication
+│   ├── sync_service.dart                  # Cloud sync with auto-sync triggers
+│   ├── sync_queue.dart                    # Offline queue with network monitoring
 │   ├── location_service.dart              # GPS + geocoding
 │   ├── background_location_service.dart   # Background tracking with debounce & lock
 │   ├── foreground_location_service.dart   # Android foreground service
-│   ├── tracking_service.dart              # Foreground tracking
+│   ├── tracking_service.dart              # Foreground tracking + sync integration
 │   ├── notification_service.dart          # Local notifications (country change, reminders)
 │   ├── time_ticker_service.dart           # Periodic UI refresh for time-based displays
 │   └── export_service.dart                # JSON/CSV export
 ├── state/
-│   ├── providers.dart         # Riverpod providers
+│   ├── providers.dart         # Riverpod providers (including sync providers)
 │   ├── tracking_provider.dart # Tracking state
 │   └── theme_provider.dart    # Theme/palette state management
 └── ui/
-    ├── screens/          # Home, Timeline, Settings, TrackingHealth, Auth, Profile, etc.
+    ├── screens/          # Home, Timeline, Settings, TrackingHealth, Auth, Profile, Onboarding
     ├── theme/
     │   ├── app_theme.dart       # Theme configuration with dynamic ThemeData builder
     │   └── theme_palette.dart   # 10 complete design system definitions
@@ -288,18 +304,67 @@ travelReminderMinute: (fields[9] as int?) ?? 0,
 - High Reliability Mode (Android) uses more battery but provides consistent tracking
 - Theme preference is saved locally and persists across app restarts
 
-## Future: Supabase Sync
+## Supabase Cloud Sync
 
-The data model is prepared for cloud synchronization:
-- `syncId` - Unique identifier for sync
-- `updatedAt` - Last modification timestamp
-- `deviceId` - Device identifier for multi-device sync
-- `isManualEdit` - Flag for conflict resolution (manual edits win)
+Cloud synchronization is fully implemented:
+
+### Data Model
+- `syncId` - Server-side UUID for the visit
+- `syncState` - Sync status: `pending`, `synced`, `modified`, `deleted`
+- `updatedAt` - Last modification timestamp for conflict resolution
+- `deviceId` - Device identifier for multi-device deduplication
+- `isManualEdit` - Flag for conflict resolution (manual edits always win)
 - `VisitSyncDto` - Privacy-focused DTO excluding GPS coordinates
+
+### Sync Triggers
+| Event | Action |
+|-------|--------|
+| Country change | Immediately sync new visit + close previous |
+| App resume | Sync any pending/unsynced visits |
+| Manual edit | Immediately sync that visit |
+| Delete visit | Immediately delete from cloud |
+| Network restored | Process offline queue |
+
+### Sync Architecture
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│ TrackingService │────▶│   SyncService   │────▶│    Supabase     │
+│ BackgroundSvc   │     │   (auto-sync)   │     │   (PostgreSQL)  │
+└─────────────────┘     └────────┬────────┘     └─────────────────┘
+                                 │
+                        ┌────────▼────────┐
+                        │    SyncQueue    │
+                        │ (offline queue) │
+                        └─────────────────┘
+```
+
+### Setup
+1. Run `supabase_setup.sql` in your Supabase SQL Editor
+2. Configure Google OAuth (optional) in Supabase Dashboard
+3. App works with email/password auth out of the box
 
 ## Changelog
 
-### v1.2.0 (Current)
+### v1.3.0 (Current)
+- ✨ **Supabase Cloud Sync** - Automatic sync of travel data to cloud
+  - Auto-sync on country change, app resume, and manual edits
+  - Offline-first with SyncQueue for network resilience
+  - SyncState tracking: `pending`, `synced`, `modified`, `deleted`
+  - Conflict resolution with last-write-wins (manual edits win)
+- ✨ **Compliance Disclosure Screen** - 2-page onboarding for App Store/Play Store
+  - Location & Cloud Sync disclosure before permission request
+  - Stores `hasSeenLocationDisclosure` flag
+- ✨ **Cloud Sync Settings UI** - New section in Settings
+  - Toggle auto-sync on/off
+  - Sync status indicator (synced/syncing/pending/error)
+  - Manual "Sync Now" button
+  - "Delete Cloud Data" option
+- ✨ **Network Monitoring** - connectivity_plus integration
+- 🔧 Updated iOS Info.plist with cloud sync disclosure in location strings
+- 🔧 App renamed to "WhereDays" (display name)
+- 🔧 SyncService initialized at app startup with lifecycle integration
+
+### v1.2.0
 - ✨ **10 Distinct UI Design Themes** - Complete design systems, not just colors
   - Unique typography per theme (Google Fonts integration)
   - Glassmorphism effects (Obsidian Glass, Arctic Mist themes)

@@ -22,6 +22,7 @@ class StorageService {
     Hive.registerAdapter(CountryVisitAdapter());
     Hive.registerAdapter(LocationAccuracyAdapter());
     Hive.registerAdapter(AppSettingsAdapter());
+    Hive.registerAdapter(SyncStateAdapter());
 
     // Open boxes
     await Hive.openBox<CountryVisit>(visitsBoxName);

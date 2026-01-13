@@ -6,5 +6,6 @@ export 'time_ticker_service.dart';
 export 'notification_service.dart';
 export 'auth_service.dart';
 export 'sync_service.dart';
+export 'sync_queue.dart';
 
 

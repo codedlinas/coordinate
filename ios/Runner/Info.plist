@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Coordinate</string>
+	<string>WhereDays</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -55,12 +55,13 @@
 	</array>
 	
 	<!-- Location Permission Descriptions -->
+	<!-- Note: Apple requires disclosure of cloud sync in location usage strings -->
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Coordinate needs your location to detect which country you are in and track your travel time.</string>
+	<string>WhereDays uses your location to track which countries you visit and log your travel history.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Coordinate needs "Always Allow" location access to automatically detect country changes even when the app is closed. This is essential for accurate travel tracking.</string>
+	<string>WhereDays uses your location to automatically track which countries you visit, even when the app is in the background. Your travel history is synced to the cloud so it's never lost.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Coordinate needs "Always Allow" location access to automatically detect country changes even when the app is closed. This is essential for accurate travel tracking.</string>
+	<string>WhereDays uses your location to automatically track which countries you visit, even when the app is in the background. Your travel history is synced to the cloud so it's never lost.</string>
 	
 	<!-- Motion Usage (required by background geolocation) -->
 	<key>NSMotionUsageDescription</key>

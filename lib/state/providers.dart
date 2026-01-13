@@ -39,11 +39,25 @@ final isAuthenticatedProvider = Provider<bool>((ref) {
 final syncServiceProvider = Provider<SyncService>((ref) {
   final visitsRepo = ref.watch(visitsRepositoryProvider);
   final authService = ref.watch(authServiceProvider);
-  return SyncService(visitsRepo, authService);
+  final service = SyncService(visitsRepo, authService);
+  
+  // Dispose when provider is disposed
+  ref.onDispose(() => service.dispose());
+  
+  return service;
 });
 
-// Sync status provider
-final syncStatusProvider = StateProvider<SyncStatus>((ref) => SyncStatus.idle);
+// Sync status stream provider - listens to SyncService status changes
+final syncStatusStreamProvider = StreamProvider<SyncStatus>((ref) {
+  final syncService = ref.watch(syncServiceProvider);
+  return syncService.statusStream;
+});
+
+// Sync status provider (current status, not stream)
+final syncStatusProvider = Provider<SyncStatus>((ref) {
+  final syncService = ref.watch(syncServiceProvider);
+  return syncService.status;
+});
 
 // Location service provider - singleton instance shared across the app
 final locationServiceProvider = Provider((ref) => LocationService());

@@ -1,5 +1,4 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
-// Modified for null-safety migration handling
 
 part of 'app_settings.dart';
 
@@ -25,10 +24,9 @@ class AppSettingsAdapter extends TypeAdapter<AppSettings> {
       trackingIntervalMinutes: fields[4] as int,
       trackingEnabled: fields[5] as bool,
       lastTrackingTime: fields[6] as DateTime?,
-      // Handle migration from old data: use defaults if fields don't exist
-      travelRemindersEnabled: (fields[7] as bool?) ?? false,
-      travelReminderHour: (fields[8] as int?) ?? 8,
-      travelReminderMinute: (fields[9] as int?) ?? 0,
+      travelRemindersEnabled: fields[7] as bool,
+      travelReminderHour: fields[8] as int,
+      travelReminderMinute: fields[9] as int,
     );
   }
 

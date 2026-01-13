@@ -8,6 +8,7 @@ final trackingServiceProvider = Provider<TrackingService>((ref) {
     ref.watch(locationServiceProvider),
     ref.watch(visitsRepositoryProvider),
     ref.watch(settingsRepositoryProvider),
+    syncService: ref.watch(syncServiceProvider),
   );
   
   // Use ref.onDispose to properly clean up the listener

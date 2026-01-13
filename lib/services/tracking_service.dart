@@ -5,11 +5,13 @@ import '../data/models/models.dart';
 import '../data/repositories/repositories.dart';
 import 'location_service.dart';
 import 'notification_service.dart';
+import 'sync_service.dart';
 
 class TrackingService extends ChangeNotifier {
   final LocationService _locationService;
   final VisitsRepository _visitsRepository;
   final SettingsRepository _settingsRepository;
+  final SyncService? _syncService;
 
   Timer? _trackingTimer;
   bool _isTracking = false;
@@ -19,8 +21,9 @@ class TrackingService extends ChangeNotifier {
   TrackingService(
     this._locationService,
     this._visitsRepository,
-    this._settingsRepository,
-  );
+    this._settingsRepository, {
+    SyncService? syncService,
+  }) : _syncService = syncService;
 
   bool get isTracking => _isTracking;
 
@@ -141,6 +144,9 @@ class TrackingService extends ChangeNotifier {
     _currentVisit = visit;
     AppLogger.tracking('Created new visit for ${visit.countryName} (ID: ${visit.id})');
     
+    // Auto-sync the new visit to cloud
+    await _syncService?.autoSyncVisit(visit);
+    
     // Show country change notification if enabled
     if (isCountryChange) {
       final settings = _settingsRepository.getSettings();
@@ -159,6 +165,16 @@ class TrackingService extends ChangeNotifier {
     final current = _visitsRepository.getCurrentVisit();
     if (current != null) {
       await _visitsRepository.endCurrentVisit(DateTime.now());
+      
+      // Get the updated visit to sync
+      final closedVisit = _visitsRepository.getVisitById(current.id);
+      if (closedVisit != null) {
+        // Mark as modified and sync
+        final modifiedVisit = closedVisit.asModified();
+        await _visitsRepository.updateVisit(modifiedVisit);
+        await _syncService?.autoSyncVisit(modifiedVisit);
+      }
+      
       _currentVisit = _visitsRepository.getCurrentVisit();
       notifyListeners();
     }

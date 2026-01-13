@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/models.dart';
 import '../../services/export_service.dart';
+import '../../services/sync_service.dart';
 import '../../state/providers.dart';
 import '../theme/app_theme.dart';
 import '../widgets/widgets.dart';
@@ -58,6 +59,15 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: 'Sync and cloud backup',
             ),
             _buildAccountSection(context, ref),
+
+            // Cloud Sync Section (only shown when authenticated)
+            if (ref.watch(isAuthenticatedProvider)) ...[
+              const SectionHeader(
+                title: 'Cloud Sync',
+                subtitle: 'Keep your travel data backed up',
+              ),
+              _buildCloudSyncSection(context, ref),
+            ],
 
             // Data Management Section
             const SectionHeader(
@@ -505,6 +515,258 @@ class SettingsScreen extends ConsumerWidget {
             MaterialPageRoute(builder: (_) => const ProfileScreen()),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildCloudSyncSection(BuildContext context, WidgetRef ref) {
+    final syncService = ref.watch(syncServiceProvider);
+    final syncStatus = ref.watch(syncStatusStreamProvider);
+    
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.cardBorder),
+      ),
+      child: Column(
+        children: [
+          // Cloud Sync Toggle
+          SwitchListTile(
+            title: const Text('Auto-Sync'),
+            subtitle: const Text('Automatically sync visits to cloud'),
+            value: syncService.cloudSyncEnabled,
+            onChanged: (value) async {
+              await syncService.setCloudSyncEnabled(value);
+              // Force rebuild
+              ref.invalidate(syncServiceProvider);
+            },
+            secondary: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppTheme.primary.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.sync_rounded,
+                color: AppTheme.primary,
+                size: 22,
+              ),
+            ),
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          
+          // Sync Status & Sync Now
+          ListTile(
+            leading: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: _getSyncStatusColor(syncStatus.value ?? syncService.status)
+                    .withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: _getSyncStatusIcon(syncStatus.value ?? syncService.status),
+            ),
+            title: Text(_getSyncStatusText(syncStatus.value ?? syncService.status)),
+            subtitle: Text(_getSyncStatusSubtitle(syncService)),
+            trailing: TextButton(
+              onPressed: syncService.status == SyncStatus.syncing
+                  ? null
+                  : () async {
+                      try {
+                        await syncService.sync();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Sync completed'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Sync failed: $e'),
+                              backgroundColor: AppTheme.error,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      }
+                    },
+              child: syncService.status == SyncStatus.syncing
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Sync Now'),
+            ),
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          
+          // Delete Cloud Data
+          ListTile(
+            leading: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppTheme.error.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.cloud_off_rounded,
+                color: AppTheme.error,
+                size: 22,
+              ),
+            ),
+            title: const Text('Delete Cloud Data'),
+            subtitle: const Text('Remove all data from servers'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => _showDeleteCloudDataDialog(context, ref),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getSyncStatusColor(SyncStatus status) {
+    switch (status) {
+      case SyncStatus.idle:
+      case SyncStatus.success:
+        return AppTheme.success;
+      case SyncStatus.syncing:
+        return AppTheme.primary;
+      case SyncStatus.pending:
+        return AppTheme.warning;
+      case SyncStatus.error:
+        return AppTheme.error;
+    }
+  }
+
+  Widget _getSyncStatusIcon(SyncStatus status) {
+    IconData icon;
+    Color color = _getSyncStatusColor(status);
+    
+    switch (status) {
+      case SyncStatus.idle:
+      case SyncStatus.success:
+        icon = Icons.check_circle_rounded;
+        break;
+      case SyncStatus.syncing:
+        icon = Icons.sync_rounded;
+        break;
+      case SyncStatus.pending:
+        icon = Icons.pending_rounded;
+        break;
+      case SyncStatus.error:
+        icon = Icons.error_rounded;
+        break;
+    }
+    
+    return Icon(icon, color: color, size: 22);
+  }
+
+  String _getSyncStatusText(SyncStatus status) {
+    switch (status) {
+      case SyncStatus.idle:
+      case SyncStatus.success:
+        return 'Synced';
+      case SyncStatus.syncing:
+        return 'Syncing...';
+      case SyncStatus.pending:
+        return 'Pending Changes';
+      case SyncStatus.error:
+        return 'Sync Failed';
+    }
+  }
+
+  String _getSyncStatusSubtitle(SyncService syncService) {
+    final lastSync = syncService.lastSyncTime;
+    if (lastSync == null) {
+      return 'Never synced';
+    }
+    
+    final now = DateTime.now();
+    final diff = now.difference(lastSync);
+    
+    if (diff.inMinutes < 1) {
+      return 'Just now';
+    } else if (diff.inMinutes < 60) {
+      return '${diff.inMinutes} minutes ago';
+    } else if (diff.inHours < 24) {
+      return '${diff.inHours} hours ago';
+    } else {
+      return '${diff.inDays} days ago';
+    }
+  }
+
+  void _showDeleteCloudDataDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppTheme.error.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.warning_rounded,
+                color: AppTheme.error,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text('Delete Cloud Data?'),
+          ],
+        ),
+        content: const Text(
+          'This will permanently delete all your travel data from our servers. '
+          'Your local data on this device will NOT be affected.\n\n'
+          'This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                final syncService = ref.read(syncServiceProvider);
+                await syncService.deleteAllCloudData();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Cloud data deleted'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to delete cloud data: $e'),
+                      backgroundColor: AppTheme.error,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.error,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
       ),
     );
   }

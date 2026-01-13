@@ -145,3 +145,4 @@ flutter pub get
 | `pubspec.yaml` | New dependencies |
 | `supabase_setup.sql` | Database schema |
 
+

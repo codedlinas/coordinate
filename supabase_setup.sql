@@ -60,3 +60,4 @@ create trigger update_visits_updated_at
 -- 4. Note your project URL and anon key from Settings > API
 -- =============================================================================
 
+

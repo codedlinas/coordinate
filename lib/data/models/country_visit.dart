@@ -1,4 +1,7 @@
 import 'package:hive/hive.dart';
+import 'sync_state.dart';
+
+export 'sync_state.dart';
 
 part 'country_visit.g.dart';
 
@@ -50,6 +53,10 @@ class CountryVisit extends HiveObject {
   @HiveField(12, defaultValue: false)
   final bool isManualEdit;
 
+  /// Sync state for tracking upload/download status
+  @HiveField(13, defaultValue: SyncState.pending)
+  final SyncState syncState;
+
   CountryVisit({
     required this.id,
     required this.countryCode,
@@ -65,6 +72,7 @@ class CountryVisit extends HiveObject {
     DateTime? updatedAt,
     this.deviceId,
     this.isManualEdit = false,
+    this.syncState = SyncState.pending,
   }) : updatedAt = updatedAt ?? DateTime.now().toUtc();
 
   Duration get duration {
@@ -88,6 +96,7 @@ class CountryVisit extends HiveObject {
     DateTime? updatedAt,
     String? deviceId,
     bool? isManualEdit,
+    SyncState? syncState,
     bool updateTimestamp = false, // Explicitly opt-in to timestamp update
   }) {
     return CountryVisit(
@@ -104,6 +113,7 @@ class CountryVisit extends HiveObject {
       updatedAt: updatedAt ?? (updateTimestamp ? DateTime.now().toUtc() : this.updatedAt),
       deviceId: deviceId ?? this.deviceId,
       isManualEdit: isManualEdit ?? this.isManualEdit,
+      syncState: syncState ?? this.syncState,
     );
   }
   
@@ -112,9 +122,39 @@ class CountryVisit extends HiveObject {
   CountryVisit asManualEdit() {
     return copyWith(
       isManualEdit: true,
+      syncState: SyncState.modified,
       updateTimestamp: true,
     );
   }
+
+  /// Create a copy marked as synced with server.
+  CountryVisit asSynced({String? syncId}) {
+    return copyWith(
+      syncId: syncId ?? this.syncId,
+      syncState: SyncState.synced,
+    );
+  }
+
+  /// Create a copy marked as modified (needs re-sync).
+  CountryVisit asModified() {
+    return copyWith(
+      syncState: SyncState.modified,
+      updateTimestamp: true,
+    );
+  }
+
+  /// Create a copy marked for deletion on server.
+  CountryVisit asDeleted() {
+    return copyWith(
+      syncState: SyncState.deleted,
+    );
+  }
+
+  /// Whether this visit needs to be synced to server.
+  bool get needsSync => syncState == SyncState.pending || syncState == SyncState.modified;
+
+  /// Whether this visit is marked for deletion.
+  bool get isMarkedForDeletion => syncState == SyncState.deleted;
 
   Map<String, dynamic> toJson() {
     return {
@@ -131,6 +171,7 @@ class CountryVisit extends HiveObject {
       'updatedAt': updatedAt.toIso8601String(),
       'deviceId': deviceId,
       'isManualEdit': isManualEdit,
+      'syncState': syncState.name,
     };
   }
 
@@ -154,6 +195,12 @@ class CountryVisit extends HiveObject {
           : null,
       deviceId: json['deviceId'] as String?,
       isManualEdit: json['isManualEdit'] as bool? ?? false,
+      syncState: json['syncState'] != null
+          ? SyncState.values.firstWhere(
+              (e) => e.name == json['syncState'],
+              orElse: () => SyncState.pending,
+            )
+          : SyncState.pending,
     );
   }
 
