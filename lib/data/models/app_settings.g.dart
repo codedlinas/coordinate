@@ -16,17 +16,19 @@ class AppSettingsAdapter extends TypeAdapter<AppSettings> {
     final fields = <int, dynamic>{
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
+    // NOTE: Null-safe reads for backward compatibility with old Hive data.
+    // When adding new fields, always use (fields[N] as Type?) ?? defaultValue
     return AppSettings(
-      accuracy: fields[0] as LocationAccuracy,
-      notificationsEnabled: fields[1] as bool,
-      countryChangeNotifications: fields[2] as bool,
-      weeklyDigestNotifications: fields[3] as bool,
-      trackingIntervalMinutes: fields[4] as int,
-      trackingEnabled: fields[5] as bool,
+      accuracy: fields[0] as LocationAccuracy? ?? LocationAccuracy.medium,
+      notificationsEnabled: (fields[1] as bool?) ?? true,
+      countryChangeNotifications: (fields[2] as bool?) ?? true,
+      weeklyDigestNotifications: (fields[3] as bool?) ?? false,
+      trackingIntervalMinutes: (fields[4] as int?) ?? 15,
+      trackingEnabled: (fields[5] as bool?) ?? false,
       lastTrackingTime: fields[6] as DateTime?,
-      travelRemindersEnabled: fields[7] as bool,
-      travelReminderHour: fields[8] as int,
-      travelReminderMinute: fields[9] as int,
+      travelRemindersEnabled: (fields[7] as bool?) ?? false,
+      travelReminderHour: (fields[8] as int?) ?? 8,
+      travelReminderMinute: (fields[9] as int?) ?? 0,
     );
   }
 
