@@ -20,6 +20,9 @@ enum SyncStatus {
 /// Box name for sync settings persistence
 const String _syncSettingsBoxName = 'sync_settings';
 
+/// Key for storing last tombstone sync time
+const String _lastTombstoneSyncKey = 'lastTombstoneSync';
+
 /// Service for syncing visits between local Hive storage and Supabase.
 /// 
 /// Implements an offline-first, upload-before-download strategy:
@@ -46,6 +49,9 @@ class SyncService {
   DateTime? _lastSyncTime;
   DateTime? get lastSyncTime => _lastSyncTime;
   
+  /// Last tombstone sync timestamp (persisted)
+  DateTime? _lastTombstoneSync;
+  
   /// Current sync status
   SyncStatus _status = SyncStatus.idle;
   SyncStatus get status => _status;
@@ -67,6 +73,11 @@ class SyncService {
       final lastSyncStr = _settingsBox?.get('lastSyncTime') as String?;
       if (lastSyncStr != null) {
         _lastSyncTime = DateTime.tryParse(lastSyncStr);
+      }
+      
+      final lastTombstoneSyncStr = _settingsBox?.get(_lastTombstoneSyncKey) as String?;
+      if (lastTombstoneSyncStr != null) {
+        _lastTombstoneSync = DateTime.tryParse(lastTombstoneSyncStr);
       }
       
       // Initialize sync queue
@@ -133,10 +144,13 @@ class SyncService {
     try {
       final deviceId = await _authService.getDeviceId();
       
-      // Step 1: Upload local changes
+      // Step 1: Download and apply tombstones first (prevents resurrecting deleted visits)
+      await _downloadAndApplyTombstones();
+      
+      // Step 2: Upload local changes
       await _uploadLocalChanges(deviceId);
       
-      // Step 2: Download remote changes
+      // Step 3: Download remote changes
       await _downloadRemoteChanges();
       
       _lastSyncTime = DateTime.now().toUtc();
@@ -277,13 +291,104 @@ class SyncService {
     
     for (final visitId in visitIds) {
       try {
-        await deleteVisit(visitId);
+        await deleteVisitWithTombstone(visitId);
         await _syncQueue?.removeFromDeletionQueue(visitId);
-        debugPrint('SyncService: Deleted visit $visitId from server');
+        debugPrint('SyncService: Deleted visit $visitId from server with tombstone');
       } catch (e) {
         debugPrint('SyncService: Failed to delete visit $visitId: $e');
         // Keep in queue for retry
       }
+    }
+  }
+  
+  // ============================================================
+  // TOMBSTONE SYNC METHODS
+  // ============================================================
+  
+  /// Download tombstones from server and delete matching local visits.
+  /// This prevents "resurrection" of visits deleted on other devices.
+  Future<void> _downloadAndApplyTombstones() async {
+    final userId = _authService.currentUser?.id;
+    if (userId == null) return;
+    
+    try {
+      // Fetch tombstones since last sync
+      var query = _client
+          .from('deleted_visits')
+          .select()
+          .eq('user_id', userId);
+      
+      if (_lastTombstoneSync != null) {
+        query = query.gt('deleted_at', _lastTombstoneSync!.toIso8601String());
+      }
+      
+      final response = await query.order('deleted_at', ascending: false);
+      
+      if (response.isEmpty) {
+        debugPrint('SyncService: No new tombstones to process');
+        return;
+      }
+      
+      debugPrint('SyncService: Processing ${response.length} tombstones');
+      
+      int deletedCount = 0;
+      for (final row in response) {
+        final localId = row['local_id'] as String;
+        final localVisit = _visitsRepo.getVisitById(localId);
+        
+        if (localVisit != null) {
+          await _visitsRepo.deleteVisit(localId);
+          deletedCount++;
+          debugPrint('SyncService: Deleted local visit $localId (tombstone from another device)');
+        }
+      }
+      
+      // Update last tombstone sync time
+      _lastTombstoneSync = DateTime.now().toUtc();
+      await _settingsBox?.put(_lastTombstoneSyncKey, _lastTombstoneSync!.toIso8601String());
+      
+      debugPrint('SyncService: Applied $deletedCount tombstones');
+    } catch (e) {
+      debugPrint('SyncService: Failed to process tombstones: $e');
+      // Don't rethrow - tombstone sync failure shouldn't block normal sync
+    }
+  }
+  
+  /// Insert a tombstone when deleting a visit (for multi-device sync).
+  Future<void> _insertTombstone(String visitId) async {
+    final userId = _authService.currentUser?.id;
+    if (userId == null) return;
+    
+    try {
+      await _client.from('deleted_visits').upsert({
+        'user_id': userId,
+        'local_id': visitId,
+        'deleted_at': DateTime.now().toUtc().toIso8601String(),
+      }, onConflict: 'user_id,local_id');
+      
+      debugPrint('SyncService: Inserted tombstone for visit $visitId');
+    } catch (e) {
+      debugPrint('SyncService: Failed to insert tombstone for $visitId: $e');
+      // Don't rethrow - tombstone insertion failure shouldn't block deletion
+    }
+  }
+  
+  /// Delete a visit from server AND insert a tombstone.
+  /// Use this instead of deleteVisit for proper multi-device sync.
+  Future<void> deleteVisitWithTombstone(String visitId) async {
+    if (!canSync) return;
+    
+    try {
+      // Insert tombstone first (so other devices know it was deleted)
+      await _insertTombstone(visitId);
+      
+      // Then delete from visits table
+      await deleteVisit(visitId);
+      
+      debugPrint('SyncService: Deleted visit $visitId with tombstone');
+    } catch (e) {
+      debugPrint('SyncService: Failed to delete visit with tombstone $visitId: $e');
+      rethrow;
     }
   }
   
@@ -325,6 +430,7 @@ class SyncService {
   
   /// Delete all user data from server.
   /// Used when user wants to remove their cloud data.
+  /// Clears visits, tombstones, and profile data.
   Future<void> deleteAllCloudData() async {
     if (!_authService.isAuthenticated) return;
     
@@ -332,9 +438,16 @@ class SyncService {
       final userId = _authService.currentUser?.id;
       if (userId == null) return;
       
+      // Delete from all three tables
       await _client.from('visits').delete().eq('user_id', userId);
+      await _client.from('deleted_visits').delete().eq('user_id', userId);
+      await _client.from('profiles').delete().eq('id', userId);
       
-      debugPrint('SyncService: Deleted all cloud data for user');
+      // Reset local tombstone sync time
+      _lastTombstoneSync = null;
+      await _settingsBox?.delete(_lastTombstoneSyncKey);
+      
+      debugPrint('SyncService: Deleted all cloud data for user (visits, tombstones, profile)');
     } catch (e) {
       debugPrint('SyncService: Failed to delete cloud data: $e');
       rethrow;
@@ -459,6 +572,7 @@ class SyncService {
   /// Delete a visit from the server.
   /// 
   /// If offline, queues for deletion when network is restored.
+  /// Inserts a tombstone for multi-device sync.
   Future<void> deleteVisitFromServer(String visitId) async {
     if (!canSync) return;
     
@@ -469,7 +583,7 @@ class SyncService {
       return;
     }
     
-    await deleteVisit(visitId);
+    await deleteVisitWithTombstone(visitId);
   }
   
   /// Delete a visit from the server (internal - always attempts).

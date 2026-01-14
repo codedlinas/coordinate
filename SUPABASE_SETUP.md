@@ -7,11 +7,19 @@ This document outlines the steps to complete the Supabase integration for the Co
 Run the SQL commands in `supabase_setup.sql` in your Supabase SQL Editor:
 https://supabase.com/dashboard/project/xulkcjygzuqfaotjckht/sql
 
-This will:
-- Create the `visits` table
-- Enable Row Level Security (RLS)
-- Create policies for user data isolation
-- Set up automatic `updated_at` timestamp triggers
+This will create the following tables:
+
+| Table | Purpose |
+|-------|---------|
+| `visits` | Stores country visit records |
+| `deleted_visits` | Tombstones for multi-device deletion sync |
+| `profiles` | User settings that sync across devices |
+
+And configure:
+- Row Level Security (RLS) on all tables
+- Policies for user data isolation
+- Automatic `updated_at` timestamp triggers
+- Tombstone cleanup function
 
 ## Step 2: Get Your Supabase Credentials
 
@@ -115,6 +123,49 @@ flutter pub get
 4. After sign-in, the sync button in the app bar should turn green
 5. Tap the sync button to test uploading visits to Supabase
 
+## Multi-Device Sync
+
+The app supports seamless multi-device synchronization:
+
+### What Syncs Across Devices
+
+| Data | Sync Behavior |
+|------|---------------|
+| **Visits** | All country visits sync automatically |
+| **Deletions** | Tombstones prevent deleted visits from "resurrecting" |
+| **Settings** | Accuracy, tracking interval, notification preferences |
+
+### Conflict Resolution
+
+- **Visits**: Latest `updated_at` wins; manual edits take priority
+- **Settings**: Latest `updated_at` wins
+- **Deletions**: Tombstones always win (delete propagates)
+
+### Synced Settings
+
+These settings sync across devices:
+- Location Accuracy (low/medium/high)
+- Tracking Interval
+- Notifications (master toggle, country alerts, weekly digest)
+- Travel Reminders (enabled, hour, minute)
+
+These are device-specific (NOT synced):
+- `trackingEnabled` - each device controls its own tracking
+- `lastTrackingTime` - device-specific
+
+### Tombstone Cleanup
+
+Tombstones older than 90 days are automatically cleaned up to prevent table bloat.
+
+To manually run cleanup:
+```sql
+SELECT cleanup_old_tombstones();
+```
+
+For automatic cleanup, set up a weekly cron job in Supabase.
+
+---
+
 ## Troubleshooting
 
 ### "Invalid API key" error
@@ -137,12 +188,14 @@ flutter pub get
 |------|---------|
 | `lib/core/config/supabase_config.dart` | Supabase credentials |
 | `lib/services/auth_service.dart` | Authentication wrapper |
-| `lib/services/sync_service.dart` | Bidirectional sync |
+| `lib/services/sync_service.dart` | Visit sync with tombstone support |
+| `lib/services/profile_sync_service.dart` | Settings sync across devices |
 | `lib/ui/screens/auth_screen.dart` | Login/signup UI |
 | `lib/ui/screens/profile_screen.dart` | Account management |
-| `lib/state/providers.dart` | Auth & sync providers |
-| `lib/main.dart` | Supabase initialization |
-| `pubspec.yaml` | New dependencies |
-| `supabase_setup.sql` | Database schema |
+| `lib/state/providers.dart` | Auth, sync & profile providers |
+| `lib/main.dart` | Supabase & sync initialization |
+| `pubspec.yaml` | Dependencies |
+| `supabase_setup.sql` | Database schema (visits, deleted_visits, profiles) |
+| `supabase/migrations/` | Supabase CLI migrations |
 
 

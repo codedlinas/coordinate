@@ -7,5 +7,4 @@ export 'notification_service.dart';
 export 'auth_service.dart';
 export 'sync_service.dart';
 export 'sync_queue.dart';
-
-
+export 'profile_sync_service.dart';

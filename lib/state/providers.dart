@@ -8,6 +8,7 @@ import '../services/background_location_service.dart';
 import '../services/foreground_location_service.dart';
 import '../services/location_service.dart';
 import '../services/notification_service.dart';
+import '../services/profile_sync_service.dart';
 import '../services/sync_service.dart';
 import '../services/time_ticker_service.dart';
 
@@ -47,6 +48,13 @@ final syncServiceProvider = Provider<SyncService>((ref) {
   return service;
 });
 
+// Profile sync service provider
+final profileSyncServiceProvider = Provider<ProfileSyncService>((ref) {
+  final settingsRepo = ref.watch(settingsRepositoryProvider);
+  final authService = ref.watch(authServiceProvider);
+  return ProfileSyncService(settingsRepo, authService);
+});
+
 // Sync status stream provider - listens to SyncService status changes
 final syncStatusStreamProvider = StreamProvider<SyncStatus>((ref) {
   final syncService = ref.watch(syncServiceProvider);
@@ -79,21 +87,35 @@ final foregroundLocationServiceProvider = Provider<ForegroundLocationService>((r
 // Settings state
 class SettingsNotifier extends StateNotifier<AppSettings> {
   final SettingsRepository _repository;
+  final ProfileSyncService? _profileSyncService;
 
-  SettingsNotifier(this._repository) : super(_repository.getSettings());
+  SettingsNotifier(this._repository, [this._profileSyncService]) 
+      : super(_repository.getSettings());
 
   void refresh() {
     state = _repository.getSettings();
+  }
+  
+  /// Mark settings as modified and optionally sync to cloud.
+  Future<void> _onSettingsChanged({bool shouldSync = true}) async {
+    if (shouldSync && _profileSyncService != null) {
+      // Mark as modified for background sync
+      await _profileSyncService.markLocalSettingsModified();
+      // Attempt immediate upload (fails gracefully if offline)
+      await _profileSyncService.uploadSettingsNow();
+    }
   }
 
   Future<void> setAccuracy(LocationAccuracy accuracy) async {
     await _repository.updateAccuracy(accuracy);
     refresh();
+    await _onSettingsChanged();
   }
 
   Future<void> setNotificationsEnabled(bool enabled) async {
     await _repository.setNotificationsEnabled(enabled);
     refresh();
+    await _onSettingsChanged();
     
     // If disabling notifications, also cancel any scheduled reminders
     if (!enabled) {
@@ -113,26 +135,31 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   Future<void> setCountryChangeNotifications(bool enabled) async {
     await _repository.setCountryChangeNotifications(enabled);
     refresh();
+    await _onSettingsChanged();
   }
 
   Future<void> setWeeklyDigestNotifications(bool enabled) async {
     await _repository.setWeeklyDigestNotifications(enabled);
     refresh();
+    await _onSettingsChanged();
   }
 
   Future<void> setTrackingInterval(int minutes) async {
     await _repository.setTrackingInterval(minutes);
     refresh();
+    await _onSettingsChanged();
   }
 
   Future<void> setTrackingEnabled(bool enabled) async {
     await _repository.setTrackingEnabled(enabled);
     refresh();
+    // Don't sync trackingEnabled - it's device-specific
   }
 
   Future<void> setTravelRemindersEnabled(bool enabled) async {
     await _repository.setTravelRemindersEnabled(enabled);
     refresh();
+    await _onSettingsChanged();
     
     // Schedule or cancel the daily reminder notification
     final notificationService = NotificationService();
@@ -150,6 +177,7 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   Future<void> setTravelReminderTime(int hour, int minute) async {
     await _repository.setTravelReminderTime(hour, minute);
     refresh();
+    await _onSettingsChanged();
     
     // Reschedule the notification with the new time (if enabled)
     final settings = _repository.getSettings();
@@ -164,12 +192,23 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   Future<void> resetSettings() async {
     await _repository.resetSettings();
     refresh();
+    await _onSettingsChanged();
+  }
+  
+  /// Refresh settings from remote profile (e.g., after login).
+  Future<void> syncFromRemote() async {
+    if (_profileSyncService != null) {
+      await _profileSyncService.downloadSettingsNow();
+      refresh();
+    }
   }
 }
 
 final settingsProvider =
     StateNotifierProvider<SettingsNotifier, AppSettings>((ref) {
-  return SettingsNotifier(ref.watch(settingsRepositoryProvider));
+  final settingsRepo = ref.watch(settingsRepositoryProvider);
+  final profileSyncService = ref.watch(profileSyncServiceProvider);
+  return SettingsNotifier(settingsRepo, profileSyncService);
 });
 
 // Visits state

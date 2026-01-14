@@ -7,6 +7,7 @@ import 'core/config/supabase_config.dart';
 import 'core/storage/storage_service.dart';
 import 'services/foreground_location_service.dart';
 import 'services/notification_service.dart';
+import 'services/profile_sync_service.dart';
 import 'state/providers.dart';
 import 'state/theme_provider.dart';
 import 'state/tracking_provider.dart';
@@ -87,6 +88,13 @@ class _CoordinateAppState extends ConsumerState<CoordinateApp> with WidgetsBindi
       // Sync pending visits on resume
       final syncService = ref.read(syncServiceProvider);
       await syncService.syncOnResume();
+      
+      // Sync profile settings on resume (if authenticated)
+      final profileSyncService = ref.read(profileSyncServiceProvider);
+      if (profileSyncService.canSync) {
+        await profileSyncService.syncProfile();
+        ref.read(settingsProvider.notifier).refresh();
+      }
     } catch (e) {
       debugPrint('Error in onAppResumed: $e');
     }
@@ -126,6 +134,18 @@ class _CoordinateAppState extends ConsumerState<CoordinateApp> with WidgetsBindi
       final syncService = ref.read(syncServiceProvider);
       await syncService.initialize();
       debugPrint('SyncService initialized successfully');
+      
+      // Initialize profile sync service
+      final profileSyncService = ref.read(profileSyncServiceProvider);
+      await profileSyncService.initialize();
+      debugPrint('ProfileSyncService initialized successfully');
+      
+      // Sync profile settings on startup (if authenticated)
+      if (profileSyncService.canSync) {
+        await profileSyncService.syncProfile();
+        // Refresh settings state after sync
+        ref.read(settingsProvider.notifier).refresh();
+      }
     } catch (e) {
       debugPrint('Failed to initialize location services: $e');
       // Don't crash the app - background tracking is optional
